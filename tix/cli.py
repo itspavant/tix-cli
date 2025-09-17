@@ -3,6 +3,7 @@ from rich.console import Console
 from rich.table import Table
 from pathlib import Path
 from tix.storage.json_storage import TaskStorage
+from datetime import datetime
 
 # Initialize console and storage
 console = Console()
@@ -423,6 +424,97 @@ def tags(no_tags):
         console.print("[bold]Tags in use:[/bold]\n")
         for tag, count in sorted(tag_counts.items(), key=lambda x: (-x[1], x[0])):
             console.print(f"  • {tag} ({count} task{'s' if count != 1 else ''})")
+
+
+@cli.command()
+@click.option('--detailed', '-d', is_flag=True, help='Show detailed breakdown')
+def stats(detailed):
+    """Show task statistics"""
+    from tix.commands.stats import show_stats
+    show_stats(storage)
+
+    if detailed:
+        # Additional detailed stats
+        tasks = storage.load_tasks()
+        if tasks:
+            console.print("\n[bold]Detailed Breakdown:[/bold]\n")
+
+            # Tasks by day
+            from collections import defaultdict
+            by_day = defaultdict(list)
+
+            for task in tasks:
+                if task.completed and task.completed_at:
+                    day = datetime.fromisoformat(task.completed_at).date()
+                    by_day[day].append(task)
+
+            if by_day:
+                console.print("[bold]Recent Completions:[/bold]")
+                for day in sorted(by_day.keys(), reverse=True)[:5]:
+                    count = len(by_day[day])
+                    console.print(f"  • {day}: {count} task(s)")
+
+
+@cli.command()
+@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text')
+@click.option('--output', '-o', type=click.Path(), help='Output to file')
+def report(format, output):
+    """Generate a task report"""
+    tasks = storage.load_tasks()
+
+    if not tasks:
+        console.print("[dim]No tasks to report[/dim]")
+        return
+
+    active = [t for t in tasks if not t.completed]
+    completed = [t for t in tasks if t.completed]
+
+    if format == 'json':
+        import json
+        report_data = {
+            'generated': datetime.now().isoformat(),
+            'summary': {
+                'total': len(tasks),
+                'active': len(active),
+                'completed': len(completed)
+            },
+            'tasks': [t.to_dict() for t in tasks]
+        }
+        report_text = json.dumps(report_data, indent=2)
+    else:
+        # Text format
+        report_lines = [
+            "TIX TASK REPORT",
+            "=" * 40,
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "",
+            f"Total Tasks: {len(tasks)}",
+            f"Active: {len(active)}",
+            f"Completed: {len(completed)}",
+            "",
+            "ACTIVE TASKS:",
+            "-" * 20
+        ]
+
+        for task in active:
+            report_lines.append(f"#{task.id} [{task.priority}] {task.text}")
+
+        report_lines.extend([
+            "",
+            "COMPLETED TASKS:",
+            "-" * 20
+        ])
+
+        for task in completed:
+            report_lines.append(f"#{task.id} ✓ {task.text}")
+
+        report_text = "\n".join(report_lines)
+
+    if output:
+        Path(output).write_text(report_text)
+        console.print(f"[green]✓[/green] Report saved to {output}")
+    else:
+        console.print(report_text)
 
 
 if __name__ == '__main__':
