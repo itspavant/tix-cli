@@ -87,5 +87,93 @@ def rm(task_id):
         console.print(f"[red]✗[/red] Removed: {task.text}")
 
 
+@cli.command()
+@click.option('--completed/--active', default=True, help='Clear completed or active tasks')
+@click.option('--force', '-f', is_flag=True, help='Skip confirmation')
+def clear(completed, force):
+    """Clear multiple tasks at once"""
+    tasks = storage.load_tasks()
+
+    if completed:
+        to_clear = [t for t in tasks if t.completed]
+        remaining = [t for t in tasks if not t.completed]
+        task_type = "completed"
+    else:
+        to_clear = [t for t in tasks if not t.completed]
+        remaining = [t for t in tasks if t.completed]
+        task_type = "active"
+
+    if not to_clear:
+        console.print(f"[yellow]No {task_type} tasks to clear[/yellow]")
+        return
+
+    count = len(to_clear)
+
+    if not force:
+        console.print(f"[yellow]About to clear {count} {task_type} task(s):[/yellow]")
+        for task in to_clear[:5]:  # Show first 5
+            console.print(f"  - {task.text}")
+        if count > 5:
+            console.print(f"  ... and {count - 5} more")
+
+        if not click.confirm("Continue?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    storage.save_tasks(remaining)
+    console.print(f"[green]✓[/green] Cleared {count} {task_type} task(s)")
+
+
+@cli.command()
+@click.argument('task_id', type=int)
+def undo(task_id):
+    """Mark a completed task as active again"""
+    task = storage.get_task(task_id)
+    if not task:
+        console.print(f"[red]✗[/red] Task #{task_id} not found")
+        return
+
+    if not task.completed:
+        console.print(f"[yellow]![/yellow] Task #{task_id} is not completed")
+        return
+
+    task.completed = False
+    task.completed_at = None
+    storage.update_task(task)
+    console.print(f"[green]✓[/green] Reactivated: {task.text}")
+
+
+@cli.command()
+@click.argument('task_ids', nargs=-1, type=int, required=True)
+def done_all(task_ids):
+    """Mark multiple tasks as done"""
+    completed = []
+    not_found = []
+    already_done = []
+
+    for task_id in task_ids:
+        task = storage.get_task(task_id)
+        if not task:
+            not_found.append(task_id)
+        elif task.completed:
+            already_done.append(task_id)
+        else:
+            task.mark_done()
+            storage.update_task(task)
+            completed.append((task_id, task.text))
+
+    # Report results
+    if completed:
+        console.print("[green]✓ Completed:[/green]")
+        for tid, text in completed:
+            console.print(f"  #{tid}: {text}")
+
+    if already_done:
+        console.print(f"[yellow]Already done: {', '.join(map(str, already_done))}[/yellow]")
+
+    if not_found:
+        console.print(f"[red]Not found: {', '.join(map(str, not_found))}[/red]")
+
+
 if __name__ == '__main__':
     cli()
