@@ -45,12 +45,18 @@ def ls(all):
     table.add_column("✓", width=3)
     table.add_column("Priority", width=8)
     table.add_column("Task")
+    table.add_column("Tags", style="dim")
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✓" if task.completed else "○"
         priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        tags_str = ", ".join(task.tags) if task.tags else ""
         table.add_row(
-            str(task.id), status, f"[{priority_color}]{task.priority}[/{priority_color}]", task.text
+            str(task.id),
+            status,
+            f"[{priority_color}]{task.priority}[/{priority_color}]",
+            task.text,
+            tags_str
         )
 
     console.print(table)
@@ -269,6 +275,154 @@ def move(from_id, to_id):
     # Save all tasks
     storage.save_tasks(sorted(tasks, key=lambda t: t.id))
     console.print(f"[green]✓[/green] Moved task from #{from_id} to #{to_id}")
+
+
+@cli.command()
+@click.argument('query')
+@click.option('--tag', '-t', help='Filter by tag')
+@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']))
+@click.option('--completed', '-c', is_flag=True, help='Search in completed tasks')
+def search(query, tag, priority, completed):
+    """Search tasks by text"""
+    tasks = storage.load_tasks()
+
+    # Filter by completion status
+    if not completed:
+        tasks = [t for t in tasks if not t.completed]
+
+    # Filter by query text (case-insensitive)
+    query_lower = query.lower()
+    results = [t for t in tasks if query_lower in t.text.lower()]
+
+    # Filter by tag if specified
+    if tag:
+        results = [t for t in results if tag in t.tags]
+
+    # Filter by priority if specified
+    if priority:
+        results = [t for t in results if t.priority == priority]
+
+    if not results:
+        console.print(f"[dim]No tasks matching '{query}'[/dim]")
+        return
+
+    console.print(f"[bold]Found {len(results)} task(s) matching '{query}':[/bold]\n")
+
+    table = Table()
+    table.add_column("ID", style="cyan", width=4)
+    table.add_column("✓", width=3)
+    table.add_column("Priority", width=8)
+    table.add_column("Task")
+    table.add_column("Tags", style="dim")
+
+    for task in results:
+        status = "✓" if task.completed else "○"
+        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        tags_str = ", ".join(task.tags) if task.tags else ""
+
+        # Highlight matching text
+        highlighted_text = task.text.replace(
+            query, f"[bold yellow]{query}[/bold yellow]"
+        ) if query.lower() in task.text.lower() else task.text
+
+        table.add_row(
+            str(task.id),
+            status,
+            f"[{priority_color}]{task.priority}[/{priority_color}]",
+            highlighted_text,
+            tags_str
+        )
+
+    console.print(table)
+
+
+@cli.command()
+@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']))
+@click.option('--tag', '-t', help='Filter by tag')
+@click.option('--completed/--active', default=None, help='Filter by completion status')
+def filter(priority, tag, completed):
+    """Filter tasks by criteria"""
+    tasks = storage.load_tasks()
+
+    # Apply filters
+    if priority:
+        tasks = [t for t in tasks if t.priority == priority]
+
+    if tag:
+        tasks = [t for t in tasks if tag in t.tags]
+
+    if completed is not None:
+        tasks = [t for t in tasks if t.completed == completed]
+
+    if not tasks:
+        console.print("[dim]No matching tasks[/dim]")
+        return
+
+    # Build filter description
+    filters = []
+    if priority:
+        filters.append(f"priority={priority}")
+    if tag:
+        filters.append(f"tag='{tag}'")
+    if completed is not None:
+        filters.append("completed" if completed else "active")
+
+    filter_desc = " AND ".join(filters)
+    console.print(f"[bold]{len(tasks)} task(s) matching [{filter_desc}]:[/bold]\n")
+
+    table = Table()
+    table.add_column("ID", style="cyan", width=4)
+    table.add_column("✓", width=3)
+    table.add_column("Priority", width=8)
+    table.add_column("Task")
+    table.add_column("Tags", style="dim")
+
+    for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
+        status = "✓" if task.completed else "○"
+        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        tags_str = ", ".join(task.tags) if task.tags else ""
+        table.add_row(
+            str(task.id),
+            status,
+            f"[{priority_color}]{task.priority}[/{priority_color}]",
+            task.text,
+            tags_str
+        )
+
+    console.print(table)
+
+
+@cli.command()
+@click.option('--no-tags', is_flag=True, help='Show tasks without tags')
+def tags(no_tags):
+    """List all unique tags or tasks without tags"""
+    tasks = storage.load_tasks()
+
+    if no_tags:
+        # Show tasks without tags
+        untagged = [t for t in tasks if not t.tags]
+        if not untagged:
+            console.print("[dim]All tasks have tags[/dim]")
+            return
+
+        console.print(f"[bold]{len(untagged)} task(s) without tags:[/bold]\n")
+        for task in untagged:
+            status = "✓" if task.completed else "○"
+            console.print(f"{status} #{task.id}: {task.text}")
+    else:
+        # Show all unique tags with counts
+        tag_counts = {}
+        for task in tasks:
+            for tag in task.tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+        if not tag_counts:
+            console.print("[dim]No tags found[/dim]")
+            return
+
+        console.print("[bold]Tags in use:[/bold]\n")
+        for tag, count in sorted(tag_counts.items(), key=lambda x: (-x[1], x[0])):
+            console.print(f"  • {tag} ({count} task{'s' if count != 1 else ''})")
 
 
 if __name__ == '__main__':
