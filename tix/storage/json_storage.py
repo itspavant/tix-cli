@@ -24,11 +24,24 @@ class TaskStorage:
             raw = json.loads(self.storage_path.read_text())
 
             # --- backward compatibility ---
-            if isinstance(raw, list):  
-                # old format detected, upgrade it
-                max_id = max((t.get("id", 0) for t in raw), default=0)
-                return {"next_id": max_id + 1, "tasks": raw}
+            if isinstance(raw, list):
+                upgraded = []
+                max_id = 0
+                for i, t in enumerate(raw, start=1):
+                    # skip invalid entries
+                    if not isinstance(t, dict):
+                        continue
+                    # ensure valid ID
+                    if "id" not in t or not isinstance(t["id"], int) or t["id"] <= 0:
+                        t["id"] = i
+                    max_id = max(max_id, t["id"])
+                    upgraded.append(t)
 
+                upgraded_data = {"next_id": max_id + 1, "tasks": upgraded}
+                self._write_data(upgraded_data)
+                return upgraded_data
+
+            # new format (dict with tasks + next_id)
             if isinstance(raw, dict) and "tasks" in raw and "next_id" in raw:
                 return raw
 
@@ -64,7 +77,8 @@ class TaskStorage:
 
     def get_task(self, task_id: int) -> Optional[Task]:
         """Get a specific task by ID"""
-        for task in self.load_tasks():
+        tasks = self.load_tasks()
+        for task in tasks:
             if task.id == task_id:
                 return task
         return None
@@ -81,14 +95,15 @@ class TaskStorage:
     def delete_task(self, task_id: int) -> bool:
         """Delete a task by ID, return True if deleted"""
         tasks = self.load_tasks()
+        original_count = len(tasks)
         new_tasks = [t for t in tasks if t.id != task_id]
-        if len(new_tasks) < len(tasks):
+        if len(new_tasks) < original_count:
             self.save_tasks(new_tasks)
             return True
         return False
 
     def get_active_tasks(self) -> List[Task]:
-        """Get all active incomplete tasks"""
+        """Get all incomplete tasks"""
         return [t for t in self.load_tasks() if not t.completed]
 
     def get_completed_tasks(self) -> List[Task]:
