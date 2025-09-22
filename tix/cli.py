@@ -345,7 +345,7 @@ def search(query, tag, priority, completed):
 @cli.command()
 @click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']))
 @click.option('--tag', '-t', help='Filter by tag')
-@click.option('--completed/--active', default=None, help='Filter by completion status')
+@click.option('--completed/--active', '-c/-a', default=None, help='Filter by completion status')
 def filter(priority, tag, completed):
     """Filter tasks by criteria"""
     tasks = storage.load_tasks()
