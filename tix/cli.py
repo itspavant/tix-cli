@@ -33,7 +33,7 @@ def setup_shell_completion():
             bash_profile = Path.home() / '.bash_profile'
             config_file = bashrc if bashrc.exists() else bash_profile
 
-            # Use Click 8's new completion format
+            # Use Click 8's new completion format with bash version detection
             completion_line = '''
 # TIX Command Completion (auto-installed)
 _tix_completion() {
@@ -190,9 +190,25 @@ complete -c tix -f -a '(_tix_completion)'
 
 @click.group(invoke_without_command=True)
 @click.version_option(version="0.2.0", prog_name="tix")
+@click.option('--init-completion', is_flag=True, help='Initialize shell completion')
 @click.pass_context
-def cli(ctx):
+def cli(ctx, init_completion):
     """⚡ TIX - Lightning-fast terminal task manager"""
+    # Handle init-completion flag
+    if init_completion:
+        setup_shell_completion()
+        shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
+        console.print("\n[green]✔[/green] Shell completion has been configured!")
+        console.print("\n[yellow]To activate it, run:[/yellow]")
+        if shell == 'bash':
+            console.print("  source ~/.bashrc")
+        elif shell == 'zsh':
+            console.print("  source ~/.zshrc")
+        elif shell == 'fish':
+            console.print("  exec fish")
+        console.print("\n[dim]Or start a new terminal session.[/dim]")
+        return
+
     # Setup shell completion on first run (unless in completion mode)
     if not os.environ.get('_TIX_COMPLETE'):
         setup_shell_completion()
@@ -752,7 +768,7 @@ def completion(reset):
 
     console.print("1. Reset and reinstall:")
     console.print("   [green]tix completion --reset[/green]")
-    console.print("   [green]tix[/green]  # This will reinstall completion\n")
+    console.print("   [green]tix --init-completion[/green]\n")
 
     console.print("2. Source your shell config:")
     if shell == 'bash':
