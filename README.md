@@ -170,9 +170,9 @@ tix search "api" -p high -t backend
 
 # Filter by criteria
 tix filter -p high           # High priority tasks
-tix filter -t urgent          # Tasks tagged "urgent"
-tix filter --active           # Only active tasks
-tix filter --completed        # Only completed tasks
+tix filter -t urgent         # Tasks tagged "urgent"
+tix filter --active, -a      # Only active tasks
+tix filter --completed, -c   # Only completed tasks
 
 # List all tags
 tix tags
