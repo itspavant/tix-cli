@@ -12,9 +12,9 @@ PIPX := $(shell command -v pipx 2> /dev/null)
 # Default target - smart install
 all: smart-install
 
-# Smart install - Everything in one command (v2.0)
+# Smart install - Everything in one command (v3.0)
 smart-install:
-	@echo "🚀 Starting TIX Smart Installation v2.0..."
+	@echo "🚀 Starting TIX Smart Installation v3.0..."
 	@if [ ! -f "./install.sh" ]; then \
 		echo "Downloading installer..."; \
 		curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh -o install.sh; \
@@ -39,8 +39,8 @@ pipx-install:
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
-	@echo "📝 Run 'tix --init-completion' to setup tab completion"
-	@echo "   Then: source ~/.bashrc  # or ~/.zshrc"
+	@echo "📝 Tab completion should work automatically."
+	@echo "   If not, run: eval \"\$$(_TIX_COMPLETE=bash_source tix)\""
 
 # Quick install for developers
 quick-install:
@@ -59,11 +59,6 @@ quick-install:
 	@tix --version > /dev/null 2>&1 || true
 	@echo ""
 	@echo "✅ Installation complete!"
-	@echo ""
-	@echo "To enable tab completion, run:"
-	@echo "  tix --init-completion"
-	@echo "  source ~/.bashrc  # for bash"
-	@echo "  source ~/.zshrc   # for zsh"
 
 # Create virtual environment
 venv:
@@ -76,7 +71,6 @@ install: venv
 	$(PIP) install -e .
 	@echo ""
 	@echo "📝 Note: Activate venv first: source $(VENV_NAME)/bin/activate"
-	@echo "   Then run 'tix --init-completion' for tab completion"
 
 # Development setup (install deps + package)
 dev: venv
@@ -133,16 +127,12 @@ setup: venv
 	$(PIP) install -r requirements.txt
 	$(PIP) install -e .
 	@echo "✅ Setup complete! Run 'source $(VENV_NAME)/bin/activate'"
-	@echo ""
-	@echo "Then run:"
-	@echo "  tix --init-completion  # Setup completion"
-	@echo "  source ~/.bashrc       # Activate completion"
 
 # Help target
 help:
 	@echo "TIX Makefile Commands:"
 	@echo ""
-	@echo "  make              # Smart install v2.0 (handles all environments)"
+	@echo "  make              # Smart install v3.0 (handles all environments)"
 	@echo "  make pipx-install # Install with pipx (Python 3.12+ recommended)"
 	@echo "  make quick-install# Quick install for developers"
 	@echo "  make setup        # Full dev environment setup with venv"
@@ -159,4 +149,3 @@ help:
 	@echo ""
 	@echo "After installation, use:"
 	@echo "  tix <TAB><TAB>    # Tab completion"
-	@echo "  t add 'task'      # Short alias (if configured)"
