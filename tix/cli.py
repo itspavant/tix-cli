@@ -6,10 +6,100 @@ from tix.storage.json_storage import TaskStorage
 from datetime import datetime
 import os
 import sys
+import subprocess
 
 # Initialize console and storage
 console = Console()
 storage = TaskStorage()
+
+
+def setup_shell_completion():
+    """Automatically setup shell completion on first run"""
+    # Check if we've already set up completion
+    config_dir = Path.home() / '.tix'
+    completion_marker = config_dir / '.completion_installed'
+
+    # Skip if already installed or if in completion mode
+    if completion_marker.exists() or os.environ.get('_TIX_COMPLETE'):
+        return
+
+    # Detect user's shell
+    shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
+
+    try:
+        if shell == 'bash':
+            # Setup for bash
+            bashrc = Path.home() / '.bashrc'
+            bash_profile = Path.home() / '.bash_profile'
+            config_file = bashrc if bashrc.exists() else bash_profile
+
+            completion_line = 'eval "$(_TIX_COMPLETE=bash_source tix)"'
+
+            # Check if already in config
+            if config_file.exists():
+                content = config_file.read_text()
+                if '_TIX_COMPLETE' not in content:
+                    # Add completion line
+                    with open(config_file, 'a') as f:
+                        f.write('\n# TIX Command Completion (auto-installed)\n')
+                        f.write(completion_line + '\n')
+
+                    console.print("[green]✔[/green] Shell completion installed for bash!")
+                    console.print(f"[yellow]Run:[/yellow] source {config_file}")
+
+        elif shell == 'zsh':
+            # Setup for zsh
+            zshrc = Path.home() / '.zshrc'
+            completion_line = 'eval "$(_TIX_COMPLETE=zsh_source tix)"'
+
+            if zshrc.exists():
+                content = zshrc.read_text()
+                if '_TIX_COMPLETE' not in content:
+                    with open(zshrc, 'a') as f:
+                        f.write('\n# TIX Command Completion (auto-installed)\n')
+                        f.write(completion_line + '\n')
+
+                    console.print("[green]✔[/green] Shell completion installed for zsh!")
+                    console.print("[yellow]Run:[/yellow] source ~/.zshrc")
+            else:
+                # Create zshrc with completion
+                with open(zshrc, 'w') as f:
+                    f.write('# TIX Command Completion (auto-installed)\n')
+                    f.write(completion_line + '\n')
+
+                console.print("[green]✔[/green] Shell completion installed for zsh!")
+                console.print("[yellow]Run:[/yellow] source ~/.zshrc")
+
+        elif shell == 'fish':
+            # Setup for fish
+            fish_config_dir = Path.home() / '.config' / 'fish'
+            fish_config_dir.mkdir(parents=True, exist_ok=True)
+            fish_config = fish_config_dir / 'config.fish'
+
+            completion_line = '_TIX_COMPLETE=fish_source tix | source'
+
+            if fish_config.exists():
+                content = fish_config.read_text()
+                if '_TIX_COMPLETE' not in content:
+                    with open(fish_config, 'a') as f:
+                        f.write('\n# TIX Command Completion (auto-installed)\n')
+                        f.write(completion_line + '\n')
+
+                    console.print("[green]✔[/green] Shell completion installed for fish!")
+            else:
+                with open(fish_config, 'w') as f:
+                    f.write('# TIX Command Completion (auto-installed)\n')
+                    f.write(completion_line + '\n')
+
+                console.print("[green]✔[/green] Shell completion installed for fish!")
+
+        # Mark as installed
+        config_dir.mkdir(parents=True, exist_ok=True)
+        completion_marker.touch()
+
+    except Exception as e:
+        # Silently fail - don't break the app if completion setup fails
+        pass
 
 
 @click.group(invoke_without_command=True)
@@ -17,6 +107,10 @@ storage = TaskStorage()
 @click.pass_context
 def cli(ctx):
     """⚡ TIX - Lightning-fast terminal task manager"""
+    # Setup shell completion on first run (unless in completion mode)
+    if not os.environ.get('_TIX_COMPLETE'):
+        setup_shell_completion()
+
     if ctx.invoked_subcommand is None:
         ctx.invoke(ls)
 
@@ -525,182 +619,38 @@ def report(format, output):
 
 
 @cli.command()
-@click.option('--shell', type=click.Choice(['bash', 'zsh', 'fish']), required=True,
-              help='Shell type for completion script')
-@click.option('--install', is_flag=True, help='Install completion script automatically')
-def completion(shell, install):
-    """Generate or install shell completion scripts"""
-    prog_name = 'tix'
+@click.option('--reset', is_flag=True, help='Reset completion setup')
+def completion(reset):
+    """Setup or reset shell completion"""
+    if reset:
+        # Remove completion marker
+        completion_marker = Path.home() / '.tix' / '.completion_installed'
+        if completion_marker.exists():
+            completion_marker.unlink()
+            console.print("[green]✔[/green] Completion setup reset. Run any tix command to reinstall.")
+        else:
+            console.print("[yellow]Completion setup was not installed.[/yellow]")
+        return
 
-    if shell == 'bash':
-        script = f"""
-# TIX Bash completion script
-# Generated by tix completion --shell bash
+    # Show manual setup instructions
+    shell = os.environ.get('SHELL', '').split('/')[-1]
 
-_tix_completion() {{
-    local IFS=$'\\n'
-    local response
+    console.print("[bold cyan]TIX Shell Completion Setup[/bold cyan]\n")
+    console.print("Shell completion should be installed automatically on first run.")
+    console.print("If it's not working, add one of these lines to your shell config:\n")
 
-    response=$(env COMP_WORDS="${{COMP_WORDS[*]}}" COMP_CWORD=$COMP_CWORD _{prog_name.upper()}_COMPLETE=bash_complete $1)
+    console.print("[yellow]For Bash (~/.bashrc or ~/.bash_profile):[/yellow]")
+    console.print('[green]eval "$(_TIX_COMPLETE=bash_source tix)"[/green]\n')
 
-    for completion in $response; do
-        IFS=',' read type value <<< "$completion"
+    console.print("[yellow]For Zsh (~/.zshrc):[/yellow]")
+    console.print('[green]eval "$(_TIX_COMPLETE=zsh_source tix)"[/green]\n')
 
-        if [[ $type == 'dir' ]]; then
-            COMPREPLY=()
-            compopt -o dirnames
-        elif [[ $type == 'file' ]]; then
-            COMPREPLY=()
-            compopt -o default
-        elif [[ $type == 'plain' ]]; then
-            COMPREPLY+=($value)
-        fi
-    done
+    console.print("[yellow]For Fish (~/.config/fish/config.fish):[/yellow]")
+    console.print('[green]_TIX_COMPLETE=fish_source tix | source[/green]\n')
 
-    return 0
-}}
-
-complete -o nosort -F _tix_completion {prog_name}
-"""
-
-    elif shell == 'zsh':
-        script = f"""
-#compdef {prog_name}
-
-# TIX Zsh completion script
-# Generated by tix completion --shell zsh
-
-_{prog_name}_completion() {{
-    local -a completions
-    local -a completions_with_descriptions
-    local -a response
-    (( ! $+commands[{prog_name}] )) && return 1
-
-    response=("${{(@f)$(env COMP_WORDS="${{words[*]}}" COMP_CWORD=${{#words[@]}} _{prog_name.upper()}_COMPLETE=zsh_complete {prog_name})}}")
-
-    for type value in ${{response[@]}}; do
-        if [[ "${{type}}" == "plain" ]]; then
-            completions+=(${{value}})
-        elif [[ "${{type}}" == "dir" ]]; then
-            _path_files -/
-        elif [[ "${{type}}" == "file" ]]; then
-            _path_files -f
-        fi
-    done
-
-    if [ -n "${{completions}}" ]; then
-        compadd -U -V unsorted -a completions
-    fi
-}}
-
-if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
-    # autoload from fpath, call function directly
-    _{prog_name}_completion "$@"
-else
-    # eval/source/. command, register function for later
-    compdef _{prog_name}_completion {prog_name}
-fi
-"""
-
-    elif shell == 'fish':
-        script = f"""
-# TIX Fish completion script
-# Generated by tix completion --shell fish
-
-function _tix_completion
-    set -l response (env _{prog_name.upper()}_COMPLETE=fish_complete COMP_WORDS=(commandline -cp) COMP_CWORD=(commandline -t) {prog_name})
-
-    for completion in $response
-        set -l metadata (string split "," $completion)
-
-        if test $metadata[1] = "dir"
-            __fish_complete_directories
-        else if test $metadata[1] = "file"
-            __fish_complete_path
-        else if test $metadata[1] = "plain"
-            echo $metadata[2]
-        end
-    end
-end
-
-complete -c {prog_name} -e
-complete -c {prog_name} -f -a '(_tix_completion)'
-"""
-
-    if install:
-        # Install the completion script
-        home = Path.home()
-
-        if shell == 'bash':
-            # Try common bash completion directories
-            completion_dirs = [
-                home / '.bash_completion.d',
-                Path('/etc/bash_completion.d'),
-                home / '.local/share/bash-completion/completions',
-            ]
-
-            install_dir = None
-            for d in completion_dirs:
-                if d.exists() or (d == home / '.bash_completion.d'):
-                    install_dir = d
-                    break
-
-            if install_dir:
-                install_dir.mkdir(parents=True, exist_ok=True)
-                completion_file = install_dir / f'{prog_name}.bash'
-                completion_file.write_text(script)
-                console.print(f"[green]✔[/green] Installed bash completion to {completion_file}")
-                console.print(
-                    "[yellow]Note:[/yellow] Source your .bashrc or restart your terminal for changes to take effect")
-
-                # Also update .bashrc if needed
-                bashrc = home / '.bashrc'
-                if bashrc.exists():
-                    bashrc_content = bashrc.read_text()
-                    source_line = f'source {completion_file}'
-                    if source_line not in bashrc_content:
-                        console.print(f"[yellow]Add this line to your .bashrc:[/yellow]\n{source_line}")
-            else:
-                console.print("[red]Could not find bash completion directory[/red]")
-                console.print("Save the following script and source it in your .bashrc:")
-                console.print(script)
-
-        elif shell == 'zsh':
-            # Zsh completion directory
-            completion_dir = home / '.zsh/completions'
-            completion_dir.mkdir(parents=True, exist_ok=True)
-            completion_file = completion_dir / f'_{prog_name}'
-            completion_file.write_text(script)
-            console.print(f"[green]✔[/green] Installed zsh completion to {completion_file}")
-
-            # Check if fpath includes our directory
-            zshrc = home / '.zshrc'
-            if zshrc.exists():
-                zshrc_content = zshrc.read_text()
-                fpath_line = f'fpath=(~/.zsh/completions $fpath)'
-                if 'fpath' not in zshrc_content or '~/.zsh/completions' not in zshrc_content:
-                    console.print(f"[yellow]Add these lines to your .zshrc:[/yellow]")
-                    console.print(f"{fpath_line}")
-                    console.print("autoload -U compinit && compinit")
-
-            console.print("[yellow]Note:[/yellow] Restart your terminal or run 'exec zsh' for changes to take effect")
-
-        elif shell == 'fish':
-            # Fish completion directory
-            completion_dir = home / '.config/fish/completions'
-            completion_dir.mkdir(parents=True, exist_ok=True)
-            completion_file = completion_dir / f'{prog_name}.fish'
-            completion_file.write_text(script)
-            console.print(f"[green]✔[/green] Installed fish completion to {completion_file}")
-            console.print("[yellow]Note:[/yellow] Completions should be available immediately in new fish sessions")
-    else:
-        # Just print the script
-        console.print(f"[bold]Completion script for {shell}:[/bold]\n")
-        console.print(script)
-        console.print(f"\n[yellow]To install, run:[/yellow] tix completion --shell {shell} --install")
+    console.print("[dim]After adding the line, restart your shell or source your config file.[/dim]")
+    console.print("[dim]Then you can use Tab to complete tix commands![/dim]")
 
 
 if __name__ == '__main__':
-    # Enable shell completion support
-    os.environ.setdefault('_TIX_COMPLETE', '')
     cli()
