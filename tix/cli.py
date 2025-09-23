@@ -6,213 +6,24 @@ from tix.storage.json_storage import TaskStorage
 from datetime import datetime
 import os
 import sys
-import subprocess
 
 # Initialize console and storage
 console = Console()
 storage = TaskStorage()
 
 
-def setup_shell_completion():
-    """Automatically setup shell completion on first run"""
-    # Check if we've already set up completion
-    config_dir = Path.home() / '.tix'
-    completion_marker = config_dir / '.completion_installed'
-
-    # Skip if already installed or if in completion mode
-    if completion_marker.exists() or os.environ.get('_TIX_COMPLETE'):
-        return
-
-    # Detect user's shell
-    shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
-
-    try:
-        if shell == 'bash':
-            # Setup for bash
-            bashrc = Path.home() / '.bashrc'
-            bash_profile = Path.home() / '.bash_profile'
-            config_file = bashrc if bashrc.exists() else bash_profile
-
-            # Use Click 8's new completion format with bash version detection
-            completion_line = '''
-# TIX Command Completion (auto-installed)
-_tix_completion() {
-    local IFS=$'\n'
-    local response
-
-    response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD _TIX_COMPLETE=bash_complete tix)
-
-    for completion in $response; do
-        IFS=',' read type value <<< "$completion"
-
-        if [[ $type == 'plain' ]]; then
-            COMPREPLY+=($value)
-        elif [[ $type == 'dir' ]]; then
-            _filedir -d
-        elif [[ $type == 'file' ]]; then
-            _filedir
-        fi
-    done
-
-    return 0
-}
-
-_tix_completion_setup() {
-    local COMPLETION_OPTIONS=""
-    local BASH_VERSION_ARR=(${BASH_VERSION//./ })
-    # Only use -o nosort on bash 4.4+
-    if [[ ${BASH_VERSION_ARR[0]} -gt 4 ]] || [[ ${BASH_VERSION_ARR[0]} -eq 4 && ${BASH_VERSION_ARR[1]} -ge 4 ]]; then
-        COMPLETION_OPTIONS="-o nosort"
-    fi
-
-    complete $COMPLETION_OPTIONS -F _tix_completion tix
-}
-
-_tix_completion_setup
-'''
-
-            # Check if already in config
-            if config_file.exists():
-                content = config_file.read_text()
-                if '_TIX_COMPLETE' not in content and '_tix_completion' not in content:
-                    # Add completion line
-                    with open(config_file, 'a') as f:
-                        f.write('\n' + completion_line)
-
-                    console.print("[green]✔[/green] Shell completion installed for bash!")
-                    console.print(f"[yellow]Run:[/yellow] source {config_file}")
-            else:
-                # Create config file with completion
-                with open(config_file, 'w') as f:
-                    f.write(completion_line)
-
-                console.print("[green]✔[/green] Shell completion installed for bash!")
-                console.print(f"[yellow]Run:[/yellow] source {config_file}")
-
-        elif shell == 'zsh':
-            # Setup for zsh
-            zshrc = Path.home() / '.zshrc'
-            completion_line = '''
-# TIX Command Completion (auto-installed)
-_tix_completion() {
-    local -a completions
-    local -a completions_with_descriptions
-    local -a response
-    (( ! $+commands[tix] )) && return 1
-
-    response=("${(@f)$(env COMP_WORDS="${words[*]}" COMP_CWORD=$((CURRENT-1)) _TIX_COMPLETE=zsh_complete tix)}")
-
-    for type key descr in ${response}; do
-        if [[ "$type" == "plain" ]]; then
-            if [[ "$descr" == "_" ]]; then
-                completions+=("$key")
-            else
-                completions_with_descriptions+=("$key:$descr")
-            fi
-        elif [[ "$type" == "dir" ]]; then
-            _path_files -/
-        elif [[ "$type" == "file" ]]; then
-            _path_files
-        fi
-    done
-
-    if [ -n "$completions_with_descriptions" ]; then
-        _describe -V unsorted completions_with_descriptions -U
-    fi
-
-    if [ -n "$completions" ]; then
-        compadd -U -V unsorted -a completions
-    fi
-}
-
-compdef _tix_completion tix
-'''
-
-            if zshrc.exists():
-                content = zshrc.read_text()
-                if '_TIX_COMPLETE' not in content and '_tix_completion' not in content:
-                    with open(zshrc, 'a') as f:
-                        f.write('\n' + completion_line)
-
-                    console.print("[green]✔[/green] Shell completion installed for zsh!")
-                    console.print("[yellow]Run:[/yellow] source ~/.zshrc")
-            else:
-                # Create zshrc with completion
-                with open(zshrc, 'w') as f:
-                    f.write(completion_line)
-
-                console.print("[green]✔[/green] Shell completion installed for zsh!")
-                console.print("[yellow]Run:[/yellow] source ~/.zshrc")
-
-        elif shell == 'fish':
-            # Setup for fish
-            fish_config_dir = Path.home() / '.config' / 'fish'
-            fish_config_dir.mkdir(parents=True, exist_ok=True)
-            fish_completions = fish_config_dir / 'completions'
-            fish_completions.mkdir(exist_ok=True)
-            fish_completion_file = fish_completions / 'tix.fish'
-
-            completion_content = '''# TIX Command Completion (auto-installed)
-function _tix_completion
-    set -l response (env _TIX_COMPLETE=fish_complete COMP_WORDS=(commandline -cp) COMP_CWORD=(commandline -t) tix)
-
-    for completion in $response
-        set -l metadata (string split "," $completion)
-
-        if test $metadata[1] = "dir"
-            __fish_complete_directories
-        else if test $metadata[1] = "file"
-            __fish_complete_path
-        else if test $metadata[1] = "plain"
-            echo $metadata[2]
-        end
-    end
-end
-
-complete -c tix -e
-complete -c tix -f -a '(_tix_completion)'
-'''
-
-            with open(fish_completion_file, 'w') as f:
-                f.write(completion_content)
-
-            console.print("[green]✔[/green] Shell completion installed for fish!")
-            console.print("[dim]Completions will be available in new fish sessions[/dim]")
-
-        # Mark as installed
-        config_dir.mkdir(parents=True, exist_ok=True)
-        completion_marker.touch()
-
-    except Exception as e:
-        # Silently fail - don't break the app if completion setup fails
-        pass
-
-
 @click.group(invoke_without_command=True)
-@click.version_option(version="0.2.0", prog_name="tix")
-@click.option('--init-completion', is_flag=True, help='Initialize shell completion')
+@click.version_option(version="0.7.0", prog_name="tix")
 @click.pass_context
-def cli(ctx, init_completion):
-    """⚡ TIX - Lightning-fast terminal task manager"""
-    # Handle init-completion flag
-    if init_completion:
-        setup_shell_completion()
-        shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
-        console.print("\n[green]✔[/green] Shell completion has been configured!")
-        console.print("\n[yellow]To activate it, run:[/yellow]")
-        if shell == 'bash':
-            console.print("  source ~/.bashrc")
-        elif shell == 'zsh':
-            console.print("  source ~/.zshrc")
-        elif shell == 'fish':
-            console.print("  exec fish")
-        console.print("\n[dim]Or start a new terminal session.[/dim]")
-        return
+def cli(ctx):
+    """⚡ TIX - Lightning-fast terminal task manager
 
-    # Setup shell completion on first run (unless in completion mode)
-    if not os.environ.get('_TIX_COMPLETE'):
-        setup_shell_completion()
-
+    Quick start:
+      tix add "My task" -p high    # Add a high priority task
+      tix ls                        # List all active tasks
+      tix done 1                    # Mark task #1 as done
+      tix --help                    # Show all commands
+    """
     if ctx.invoked_subcommand is None:
         ctx.invoke(ls)
 
@@ -220,13 +31,16 @@ def cli(ctx, init_completion):
 @cli.command()
 @click.argument('task')
 @click.option('--priority', '-p', default='medium',
-              type=click.Choice(['low', 'medium', 'high']))
+              type=click.Choice(['low', 'medium', 'high']),
+              help='Set task priority')
 @click.option('--tag', '-t', multiple=True, help='Add tags to task')
 def add(task, priority, tag):
     """Add a new task"""
     new_task = storage.add_task(task, priority, list(tag))
     color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
+    if tag:
+        console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
 
 
 @cli.command()
@@ -239,26 +53,34 @@ def ls(all):
         console.print("[dim]No tasks found. Use 'tix add' to create one![/dim]")
         return
 
-    table = Table(title="Tasks")
+    table = Table(title="Tasks" if not all else "All Tasks")
     table.add_column("ID", style="cyan", width=4)
-    table.add_column("✓", width=3)
+    table.add_column("✔", width=3)
     table.add_column("Priority", width=8)
     table.add_column("Task")
     table.add_column("Tags", style="dim")
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
-        status = "✓" if task.completed else "○"
+        status = "✔" if task.completed else "○"
         priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
+
+        task_style = "dim strike" if task.completed else ""
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
-            task.text,
+            f"[{task_style}]{task.text}[/{task_style}]" if task.completed else task.text,
             tags_str
         )
 
     console.print(table)
+
+    # Show summary
+    if all:
+        active = len([t for t in tasks if not t.completed])
+        completed = len([t for t in tasks if t.completed])
+        console.print(f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]")
 
 
 @cli.command()
@@ -281,13 +103,14 @@ def done(task_id):
 
 @cli.command()
 @click.argument('task_id', type=int)
-@click.option("--confirm", is_flag=True, help="Force deleting a task")
+@click.option("--confirm", "-y", is_flag=True, help="Skip confirmation")
 def rm(task_id, confirm):
     """Remove a task"""
     task = storage.get_task(task_id)
     if not task:
         console.print(f"[red]✗[/red] Task #{task_id} not found")
         return
+
     if not confirm:
         if not click.confirm(f"Are you sure you want to delete task #{task_id}: '{task.text}'?"):
             console.print("[yellow]⚠ Cancelled[/yellow]")
@@ -388,7 +211,7 @@ def done_all(task_ids):
 @cli.command()
 @click.argument('task_id', type=int)
 @click.option('--text', '-t', help='New task text')
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']))
+@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='New priority')
 @click.option('--add-tag', multiple=True, help='Add tags')
 @click.option('--remove-tag', multiple=True, help='Remove tags')
 def edit(task_id, text, priority, add_tag, remove_tag):
@@ -484,7 +307,7 @@ def move(from_id, to_id):
 @cli.command()
 @click.argument('query')
 @click.option('--tag', '-t', help='Filter by tag')
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']))
+@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='Filter by priority')
 @click.option('--completed', '-c', is_flag=True, help='Search in completed tasks')
 def search(query, tag, priority, completed):
     """Search tasks by text"""
@@ -514,13 +337,13 @@ def search(query, tag, priority, completed):
 
     table = Table()
     table.add_column("ID", style="cyan", width=4)
-    table.add_column("✓", width=3)
+    table.add_column("✔", width=3)
     table.add_column("Priority", width=8)
     table.add_column("Task")
     table.add_column("Tags", style="dim")
 
     for task in results:
-        status = "✓" if task.completed else "○"
+        status = "✔" if task.completed else "○"
         priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
 
@@ -541,7 +364,7 @@ def search(query, tag, priority, completed):
 
 
 @cli.command()
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']))
+@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='Filter by priority')
 @click.option('--tag', '-t', help='Filter by tag')
 @click.option('--completed/--active', '-c/-a', default=None, help='Filter by completion status')
 def filter(priority, tag, completed):
@@ -571,18 +394,18 @@ def filter(priority, tag, completed):
     if completed is not None:
         filters.append("completed" if completed else "active")
 
-    filter_desc = " AND ".join(filters)
+    filter_desc = " AND ".join(filters) if filters else "all"
     console.print(f"[bold]{len(tasks)} task(s) matching [{filter_desc}]:[/bold]\n")
 
     table = Table()
     table.add_column("ID", style="cyan", width=4)
-    table.add_column("✓", width=3)
+    table.add_column("✔", width=3)
     table.add_column("Priority", width=8)
     table.add_column("Task")
     table.add_column("Tags", style="dim")
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
-        status = "✓" if task.completed else "○"
+        status = "✔" if task.completed else "○"
         priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
         table.add_row(
@@ -611,7 +434,7 @@ def tags(no_tags):
 
         console.print(f"[bold]{len(untagged)} task(s) without tags:[/bold]\n")
         for task in untagged:
-            status = "✓" if task.completed else "○"
+            status = "✔" if task.completed else "○"
             console.print(f"{status} #{task.id}: {task.text}")
     else:
         # Show all unique tags with counts
@@ -659,7 +482,7 @@ def stats(detailed):
 
 
 @cli.command()
-@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text')
+@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
 @click.option('--output', '-o', type=click.Path(), help='Output to file')
 def report(format, output):
     """Generate a task report"""
@@ -700,7 +523,8 @@ def report(format, output):
         ]
 
         for task in active:
-            report_lines.append(f"#{task.id} [{task.priority}] {task.text}")
+            tags = f" [{', '.join(task.tags)}]" if task.tags else ""
+            report_lines.append(f"#{task.id} [{task.priority}] {task.text}{tags}")
 
         report_lines.extend([
             "",
@@ -709,7 +533,8 @@ def report(format, output):
         ])
 
         for task in completed:
-            report_lines.append(f"#{task.id} ✓ {task.text}")
+            tags = f" [{', '.join(task.tags)}]" if task.tags else ""
+            report_lines.append(f"#{task.id} ✔ {task.text}{tags}")
 
         report_text = "\n".join(report_lines)
 
@@ -718,68 +543,6 @@ def report(format, output):
         console.print(f"[green]✔[/green] Report saved to {output}")
     else:
         console.print(report_text)
-
-
-@cli.command()
-@click.option('--reset', is_flag=True, help='Reset completion setup')
-def completion(reset):
-    """Setup or reset shell completion"""
-    if reset:
-        # Remove completion marker
-        completion_marker = Path.home() / '.tix' / '.completion_installed'
-        if completion_marker.exists():
-            completion_marker.unlink()
-            console.print("[green]✔[/green] Completion setup reset. Run any tix command to reinstall.")
-
-        # Also try to remove from shell configs
-        shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
-
-        if shell == 'bash':
-            for config_file in [Path.home() / '.bashrc', Path.home() / '.bash_profile']:
-                if config_file.exists():
-                    lines = config_file.read_text().splitlines()
-                    new_lines = []
-                    skip = False
-                    for line in lines:
-                        if '# TIX Command Completion' in line:
-                            skip = True
-                        elif skip and line.strip() == '':
-                            skip = False
-                            continue
-                        elif skip and '_tix_completion_setup' in line:
-                            skip = False
-                            continue
-
-                        if not skip:
-                            new_lines.append(line)
-
-                    config_file.write_text('\n'.join(new_lines))
-
-            console.print("[yellow]Removed completion from bash config. Source your .bashrc to apply.[/yellow]")
-
-        return
-
-    # Show manual setup instructions
-    shell = os.environ.get('SHELL', '').split('/')[-1]
-
-    console.print("[bold cyan]TIX Shell Completion Setup[/bold cyan]\n")
-    console.print("Shell completion should be installed automatically on first run.")
-    console.print("If it's not working, try these steps:\n")
-
-    console.print("1. Reset and reinstall:")
-    console.print("   [green]tix completion --reset[/green]")
-    console.print("   [green]tix --init-completion[/green]\n")
-
-    console.print("2. Source your shell config:")
-    if shell == 'bash':
-        console.print("   [green]source ~/.bashrc[/green] or [green]source ~/.bash_profile[/green]\n")
-    elif shell == 'zsh':
-        console.print("   [green]source ~/.zshrc[/green]\n")
-    elif shell == 'fish':
-        console.print("   [green]exec fish[/green]\n")
-
-    console.print("3. Test completion:")
-    console.print("   [green]tix <TAB><TAB>[/green]")
 
 
 if __name__ == '__main__':

@@ -1,81 +1,11 @@
 from setuptools import setup, find_packages
-from setuptools.command.install import install
-from setuptools.command.develop import develop
-import os
-import sys
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-
-def setup_message():
-    """Display post-installation message"""
-    try:
-        from pathlib import Path
-
-        shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
-
-        print("\n" + "=" * 60)
-        print("🚀 TIX Installation Complete! (v0.4.0)")
-        print("=" * 60)
-
-        # Check if we're in a managed environment
-        python_version = sys.version_info
-        if python_version >= (3, 11):
-            print("\n⚠️  Python 3.11+ detected with managed environment.")
-            print("   If 'tix' command is not found, ensure PATH includes:")
-            print(f"   export PATH=\"$HOME/.local/bin:$PATH\"")
-
-        print("\n✨ Shell completion will be automatically configured on first run.")
-        print("   Just run 'tix' and follow any prompts.\n")
-
-        print("📝 Quick Start:")
-        print("   tix add 'My first task' -p high  # Add a task")
-        print("   tix ls                            # List tasks")
-        print("   tix <TAB><TAB>                    # Tab completion")
-        print("   t ls                              # Use alias (if configured)")
-        print("\n" + "=" * 60)
-
-        print("\n💡 For instant tab completion, run:")
-        print("   tix --init-completion")
-        if 'bash' in shell:
-            print("   source ~/.bashrc")
-        elif 'zsh' in shell:
-            print("   source ~/.zshrc")
-        elif 'fish' in shell:
-            print("   exec fish")
-        else:
-            print("   source your shell config file")
-
-        print("\n🔧 If you encounter 'externally-managed-environment' error:")
-        print("   Consider using pipx: pipx install tix-cli")
-        print("   Or use a virtual environment")
-
-        print("\n" + "=" * 60 + "\n")
-
-    except Exception:
-        pass
-
-
-class PostInstallCommand(install):
-    """Post-installation for installation mode"""
-
-    def run(self):
-        install.run(self)
-        setup_message()
-
-
-class PostDevelopCommand(develop):
-    """Post-installation for development mode"""
-
-    def run(self):
-        develop.run(self)
-        setup_message()
-
-
 setup(
     name="tix-cli",
-    version="0.4.0",
+    version="0.4.1",
     author="Valentin Todorov",
     author_email="valentin.v.todorov@gmail.com",
     description="Lightning-fast terminal task manager with auto-completion (PEP 668 compatible)",
@@ -120,10 +50,6 @@ setup(
         "console_scripts": [
             "tix=tix.cli:cli",
         ],
-    },
-    cmdclass={
-        'install': PostInstallCommand,
-        'develop': PostDevelopCommand,
     },
     keywords="task todo cli terminal productivity manager shell completion pipx pep668",
     project_urls={
