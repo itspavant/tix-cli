@@ -6,10 +6,32 @@ A minimalist, powerful command-line task manager built with Python. Manage your 
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
 ![Shell Completion](https://img.shields.io/badge/completion-auto--enabled-success.svg)
+![One-Command Install](https://img.shields.io/badge/install-one--command-ff69b4.svg)
+
+## 🚀 Quick Install (One Command!)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
+```
+
+**That's it!** This smart installer will:
+- ✅ Detect your OS and shell automatically
+- ✅ Install Python dependencies if needed
+- ✅ Install TIX with pip
+- ✅ Configure shell completion automatically
+- ✅ Add convenient alias (`t` for `tix`)
+- ✅ Offer to restart your shell with everything ready
+
+After installation, you can immediately use:
+```bash
+tix <TAB><TAB>  # Tab completion works!
+t add "My task"  # Short alias works!
+```
 
 ## ✨ Features
 
 - **Fast & Simple**: Add tasks with a single command
+- **Smart Installation**: One-command setup with auto-completion
 - **Persistent Storage**: Tasks are saved locally in JSON format
 - **Priority Levels**: Organize tasks by high, medium, or low priority
 - **Tags**: Categorize tasks with custom tags
@@ -19,115 +41,48 @@ A minimalist, powerful command-line task manager built with Python. Manage your 
 - **Colored Output**: Beautiful terminal UI with rich formatting
 - **Bulk Operations**: Mark multiple tasks as done at once
 - **Auto Shell Completion**: Tab completion works out of the box for bash, zsh, and fish
+- **Convenient Alias**: Use `t` instead of `tix` for faster typing
 
-## 🚀 Quick Start
+## 📖 Alternative Installation Methods
 
-### Installation
+### From Source
 
 ```bash
-# Clone the repository
+# Clone
 git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
 cd tix-cli
 
-# Install with pip (auto-configures completion)
-pip install -e .
+# Run installer
+./install.sh
 
-# That's it! Shell completion is automatically configured
-# Just start using tix:
-tix <TAB><TAB>  # Auto-completion works immediately!
+# Or use Make
+make  # Runs smart installer
 ```
 
-### Alternative Installation Methods
-
-#### From PyPI (Coming Soon)
+### Using pip (Manual Completion Setup)
 
 ```bash
+# Install
 pip install tix-cli
-# Shell completion auto-configures on first run!
+
+# Setup completion
+tix --init-completion
+
+# Enable completion (choose based on your shell)
+source ~/.bashrc   # For bash
+source ~/.zshrc    # For zsh
+exec fish         # For fish
 ```
 
-#### Using Virtual Environment (Recommended)
+### For Developers
 
 ```bash
-# Clone the repository
 git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
 cd tix-cli
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install tix
-pip install -e .
-
-# Shell completion is automatically configured!
-tix <TAB><TAB>  # Works immediately
+make quick-install  # Fast dev install
 ```
 
-## 🎯 Auto-Completion
-
-**TIX automatically configures shell completion on first run!** No manual setup needed.
-
-### How It Works
-
-1. Install tix: `pip install -e .`
-2. Run any tix command: `tix`
-3. Completion is automatically configured for your shell
-4. Restart your terminal or source your shell config
-5. Start using Tab completion!
-
-### Supported Shells
-
-- ✅ **Bash** - Auto-configures in ~/.bashrc or ~/.bash_profile
-- ✅ **Zsh** - Auto-configures in ~/.zshrc
-- ✅ **Fish** - Auto-configures in ~/.config/fish/config.fish
-
-### Using Tab Completion
-
-```bash
-# Complete commands
-tix <TAB><TAB>
-# Shows: add clear done edit filter ls move priority report rm search stats tags undo
-
-# Complete options
-tix add --<TAB><TAB>
-# Shows: --priority --tag --help
-
-# Complete option values
-tix add --priority <TAB><TAB>
-# Shows: high low medium
-
-# Complete task IDs
-tix done <TAB><TAB>
-# Shows: 1 2 3 (your actual task IDs)
-```
-
-### Manual Setup (If Needed)
-
-If auto-configuration doesn't work, you can manually add completion:
-
-```bash
-# For Bash - add to ~/.bashrc
-eval "$(_TIX_COMPLETE=bash_source tix)"
-
-# For Zsh - add to ~/.zshrc
-eval "$(_TIX_COMPLETE=zsh_source tix)"
-
-# For Fish - add to ~/.config/fish/config.fish
-_TIX_COMPLETE=fish_source tix | source
-```
-
-### Reset Completion
-
-```bash
-# Reset completion setup if needed
-tix completion --reset
-
-# Then run any tix command to reconfigure
-tix
-```
-
-## 📖 Usage Guide
+## 🎯 Usage Guide
 
 ### Basic Commands
 
@@ -136,6 +91,8 @@ tix
 ```bash
 # Simple task
 tix add "Write documentation"
+# Or use alias
+t add "Write documentation"
 
 # With priority (high/medium/low)
 tix add "Fix critical bug" -p high
@@ -152,11 +109,11 @@ tix add "Deploy to production" -p high -t devops -t release
 ```bash
 # Show active tasks
 tix ls
+# Or
+t ls
 
 # Show all tasks (including completed)
 tix ls --all
-
-# Short alias
 tix ls -a
 ```
 
@@ -248,6 +205,28 @@ tix report --format json --output tasks.json
 tix report --output my-tasks.txt
 ```
 
+## 🎨 Using Tab Completion
+
+Tab completion works automatically after installation:
+
+```bash
+# Complete commands
+tix <TAB><TAB>
+# Shows: add clear completion done done-all edit filter ls move priority report rm search stats tags undo
+
+# Complete options
+tix add --<TAB><TAB>
+# Shows: --priority --tag --help
+
+# Complete option values
+tix add --priority <TAB><TAB>
+# Shows: high low medium
+
+# Works with the alias too
+t <TAB><TAB>
+t add --<TAB><TAB>
+```
+
 ## 📁 Data Storage
 
 Tasks are stored in `~/.tix/tasks.json` in your home directory.
@@ -300,12 +279,14 @@ Example structure:
 export TIX_HOME=/custom/path
 ```
 
-### Aliases (Optional)
+### Aliases
 
-Add to your shell config file:
+The installer automatically adds `alias t='tix'` to your shell config.
+
+You can add more aliases manually:
 
 ```bash
-alias t='tix'
+# Add to ~/.bashrc or ~/.zshrc
 alias ta='tix add'
 alias tl='tix ls'
 alias td='tix done'
@@ -321,15 +302,18 @@ alias ts='tix search'
 git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
 cd tix-cli
 
-# Create virtual environment
+# Use make for easy setup
+make setup  # Creates venv and installs everything
+
+# Or manually
 python3 -m venv venv
 source venv/bin/activate
-
-# Install in development mode
 pip install -r requirements.txt
 pip install -e .
 
 # Run tests
+make test
+# Or
 pytest tests/ -v
 
 # Run with coverage
@@ -340,6 +324,7 @@ pytest tests/ -v --cov=tix --cov-report=term-missing
 
 ```
 tix-cli/
+├── install.sh              # Smart installer script
 ├── tix/
 │   ├── __init__.py
 │   ├── cli.py              # Main CLI with auto-completion
@@ -353,9 +338,99 @@ tix-cli/
 │   ├── test_models.py
 │   ├── test_storage.py
 │   └── test_completion.py
-├── setup.py                # With auto-completion setup
+├── setup.py                # With post-install hooks
+├── Makefile               # Developer commands
 ├── requirements.txt
 └── README.md
+```
+
+## 📝 Examples
+
+### Daily Workflow
+
+```bash
+# Morning: Add today's tasks (using alias for speed)
+t add "Team standup meeting" -p high -t work
+t add "Review pull requests" -p medium -t work
+t add "Fix login bug" -p high -t bug -t urgent
+t add "Update documentation" -p low -t docs
+
+# Check your tasks
+t ls
+
+# Complete tasks using tab completion for IDs
+t done<TAB> 1<TAB>  # Tab shows available task IDs
+t done 3
+
+# End of day: View progress
+t stats
+
+# Generate report
+t report --output daily-report.txt
+```
+
+### Project Management
+
+```bash
+# Add project tasks with tags
+t add "Design database schema" -p high -t project-x -t backend
+t add "Create API endpoints" -p high -t project-x -t backend
+t add "Write unit tests" -p medium -t project-x -t testing
+t add "Setup CI/CD pipeline" -p medium -t project-x -t devops
+
+# View project tasks
+t filter -t project-x
+
+# Search within project
+t search "API" -t project-x
+```
+
+## 🐛 Troubleshooting
+
+### Installation Issues
+
+**Issue: One-command install fails**
+```bash
+# Try manual installation
+git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
+cd tix-cli
+pip install -e .
+tix --init-completion
+source ~/.bashrc
+```
+
+### Shell Completion Issues
+
+**Issue: Tab completion not working**
+```bash
+# Reset and reconfigure
+tix completion --reset
+tix --init-completion
+source ~/.bashrc  # or ~/.zshrc for zsh
+
+# Verify completion is loaded
+grep "TIX" ~/.bashrc
+```
+
+**Issue: `tix: command not found`**
+```bash
+# Ensure pip bin directory is in PATH
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# Or reinstall
+pip install --user tix-cli
+```
+
+### Data Issues
+
+**Issue: Tasks not persisting**
+```bash
+# Check storage file exists
+ls -la ~/.tix/tasks.json
+
+# Check permissions
+chmod 644 ~/.tix/tasks.json
 ```
 
 ## 🤝 Contributing
@@ -366,86 +441,10 @@ We welcome contributions! Please follow these guidelines:
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Keep changes focused and small
 4. Write tests for new features
-5. Ensure all tests pass
+5. Ensure all tests pass (`make test`)
 6. Submit a Pull Request
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
-## 📝 Examples
-
-### Daily Workflow
-
-```bash
-# Morning: Add today's tasks (with tab completion!)
-tix add<TAB> "Team standup meeting" -p<TAB> high -t<TAB> work
-tix add "Review pull requests" -p medium -t work
-tix add "Fix login bug" -p high -t bug -t urgent
-tix add "Update documentation" -p low -t docs
-
-# Check your tasks
-tix ls
-
-# Complete tasks using tab completion for IDs
-tix done<TAB> 1<TAB>  # Tab shows available task IDs
-tix done 3
-
-# End of day: View progress
-tix stats
-
-# Generate report
-tix report --output daily-report.txt
-```
-
-### Project Management
-
-```bash
-# Add project tasks with tags
-tix add "Design database schema" -p high -t project-x -t backend
-tix add "Create API endpoints" -p high -t project-x -t backend
-tix add "Write unit tests" -p medium -t project-x -t testing
-tix add "Setup CI/CD pipeline" -p medium -t project-x -t devops
-
-# View project tasks with tab completion
-tix filter<TAB> -t<TAB> project-x
-
-# Search within project
-tix search "API" -t project-x
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Issue: Shell completion not working**
-```bash
-# Check if completion is configured
-grep _TIX_COMPLETE ~/.bashrc  # or ~/.zshrc for zsh
-
-# Reset and reconfigure
-tix completion --reset
-tix  # This will auto-configure again
-
-# Manually source your shell config
-source ~/.bashrc  # or ~/.zshrc for zsh
-```
-
-**Issue: `tix: command not found`**
-```bash
-# Ensure you're in virtual environment
-source venv/bin/activate
-
-# Or reinstall
-pip install -e .
-```
-
-**Issue: Tasks not persisting**
-```bash
-# Check storage file exists
-ls -la ~/.tix/tasks.json
-
-# Check permissions
-chmod 644 ~/.tix/tasks.json
-```
 
 ## 📄 License
 
@@ -463,6 +462,12 @@ Built with:
 - **Issues**: [GitHub Issues](https://github.com/TheDevOpsBlueprint/tix-cli/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/TheDevOpsBlueprint/tix-cli/discussions)
 - **Email**: valentin.v.todorov@gmail.com
+
+## 🌟 Star History
+
+If you find TIX useful, please consider giving it a star on GitHub!
+
+[![Star History](https://img.shields.io/github/stars/TheDevOpsBlueprint/tix-cli?style=social)](https://github.com/TheDevOpsBlueprint/tix-cli)
 
 ---
 
