@@ -16,8 +16,16 @@ def setup_message():
         shell = os.environ.get('SHELL', '/bin/bash').split('/')[-1]
 
         print("\n" + "=" * 60)
-        print("🚀 TIX Installation Complete!")
+        print("🚀 TIX Installation Complete! (v0.4.0)")
         print("=" * 60)
+
+        # Check if we're in a managed environment
+        python_version = sys.version_info
+        if python_version >= (3, 11):
+            print("\n⚠️  Python 3.11+ detected with managed environment.")
+            print("   If 'tix' command is not found, ensure PATH includes:")
+            print(f"   export PATH=\"$HOME/.local/bin:$PATH\"")
+
         print("\n✨ Shell completion will be automatically configured on first run.")
         print("   Just run 'tix' and follow any prompts.\n")
 
@@ -29,6 +37,7 @@ def setup_message():
         print("\n" + "=" * 60)
 
         print("\n💡 For instant tab completion, run:")
+        print("   tix --init-completion")
         if 'bash' in shell:
             print("   source ~/.bashrc")
         elif 'zsh' in shell:
@@ -37,6 +46,10 @@ def setup_message():
             print("   exec fish")
         else:
             print("   source your shell config file")
+
+        print("\n🔧 If you encounter 'externally-managed-environment' error:")
+        print("   Consider using pipx: pipx install tix-cli")
+        print("   Or use a virtual environment")
 
         print("\n" + "=" * 60 + "\n")
 
@@ -62,10 +75,10 @@ class PostDevelopCommand(develop):
 
 setup(
     name="tix-cli",
-    version="0.3.0",
+    version="0.4.0",
     author="Valentin Todorov",
     author_email="valentin.v.todorov@gmail.com",
-    description="Lightning-fast terminal task manager with auto-completion",
+    description="Lightning-fast terminal task manager with auto-completion (PEP 668 compatible)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/TheDevOpsBlueprint/tix-cli",
@@ -85,6 +98,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Operating System :: OS Independent",
         "Operating System :: POSIX",
         "Operating System :: MacOS",
@@ -111,7 +125,7 @@ setup(
         'install': PostInstallCommand,
         'develop': PostDevelopCommand,
     },
-    keywords="task todo cli terminal productivity manager shell completion",
+    keywords="task todo cli terminal productivity manager shell completion pipx pep668",
     project_urls={
         "Bug Reports": "https://github.com/TheDevOpsBlueprint/tix-cli/issues",
         "Source": "https://github.com/TheDevOpsBlueprint/tix-cli",

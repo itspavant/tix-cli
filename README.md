@@ -2,11 +2,12 @@
 
 A minimalist, powerful command-line task manager built with Python. Manage your todos efficiently without leaving your terminal.
 
-![Python](https://img.shields.io/badge/python-v3.8+-blue.svg)
+![Python](https://img.shields.io/badge/python-v3.7+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
 ![Shell Completion](https://img.shields.io/badge/completion-auto--enabled-success.svg)
 ![One-Command Install](https://img.shields.io/badge/install-one--command-ff69b4.svg)
+![PEP 668](https://img.shields.io/badge/PEP--668-compatible-green.svg)
 
 ## 🚀 Quick Install (One Command!)
 
@@ -14,12 +15,13 @@ A minimalist, powerful command-line task manager built with Python. Manage your 
 curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
 ```
 
-**That's it!** This smart installer will:
+**That's it!** This smart installer (v2.0) will:
 - ✅ Detect your OS and shell automatically
-- ✅ Install Python dependencies if needed
-- ✅ Install TIX with pip
+- ✅ Handle Python 3.12+ managed environments (PEP 668)
+- ✅ Install using pipx for isolation (recommended)
 - ✅ Configure shell completion automatically
 - ✅ Add convenient alias (`t` for `tix`)
+- ✅ Set up PATH correctly
 - ✅ Offer to restart your shell with everything ready
 
 After installation, you can immediately use:
@@ -31,7 +33,8 @@ t add "My task"  # Short alias works!
 ## ✨ Features
 
 - **Fast & Simple**: Add tasks with a single command
-- **Smart Installation**: One-command setup with auto-completion
+- **Smart Installation**: One-command setup that handles all environments
+- **Python 3.12+ Compatible**: Works with externally-managed environments
 - **Persistent Storage**: Tasks are saved locally in JSON format
 - **Priority Levels**: Organize tasks by high, medium, or low priority
 - **Tags**: Categorize tasks with custom tags
@@ -43,7 +46,58 @@ t add "My task"  # Short alias works!
 - **Auto Shell Completion**: Tab completion works out of the box for bash, zsh, and fish
 - **Convenient Alias**: Use `t` instead of `tix` for faster typing
 
-## 📖 Alternative Installation Methods
+## 📖 Installation Methods
+
+### Recommended: One-Command Install
+
+Works on macOS, Linux, and WSL with Python 3.7+:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
+```
+
+### macOS with Homebrew Python (Python 3.12+)
+
+For macOS users with Homebrew-installed Python:
+
+```bash
+# Option 1: Install pipx first (recommended)
+brew install pipx
+pipx ensurepath
+pipx install tix-cli
+
+# Option 2: Use the smart installer (handles everything)
+curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
+```
+
+### Using pipx (Recommended for Python 3.12+)
+
+```bash
+# Install pipx if not already installed
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+
+# Install TIX
+pipx install tix-cli
+
+# Setup completion
+tix --init-completion
+source ~/.bashrc  # or ~/.zshrc
+```
+
+### Using pip with Virtual Environment
+
+```bash
+# Create virtual environment
+python3 -m venv tix-env
+source tix-env/bin/activate
+
+# Install TIX
+pip install tix-cli
+
+# Setup completion
+tix --init-completion
+```
 
 ### From Source
 
@@ -52,26 +106,11 @@ t add "My task"  # Short alias works!
 git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
 cd tix-cli
 
-# Run installer
+# Run installer (handles all environments)
 ./install.sh
 
 # Or use Make
 make  # Runs smart installer
-```
-
-### Using pip (Manual Completion Setup)
-
-```bash
-# Install
-pip install tix-cli
-
-# Setup completion
-tix --init-completion
-
-# Enable completion (choose based on your shell)
-source ~/.bashrc   # For bash
-source ~/.zshrc    # For zsh
-exec fish         # For fish
 ```
 
 ### For Developers
@@ -79,7 +118,53 @@ exec fish         # For fish
 ```bash
 git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
 cd tix-cli
-make quick-install  # Fast dev install
+
+# Quick install for development
+make quick-install
+
+# Or with virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -e .
+```
+
+## 🎯 Troubleshooting Installation
+
+### Python "Externally Managed Environment" Error
+
+If you see this error on Python 3.12+:
+```
+error: externally-managed-environment
+```
+
+**Solution 1: Use the smart installer (recommended)**
+```bash
+curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
+```
+
+**Solution 2: Use pipx**
+```bash
+brew install pipx  # on macOS
+pipx install tix-cli
+```
+
+**Solution 3: Use virtual environment**
+```bash
+python3 -m venv tix-env
+source tix-env/bin/activate
+pip install tix-cli
+```
+
+### PATH Issues
+
+If `tix` command is not found after installation:
+
+```bash
+# Add to your shell config (~/.bashrc or ~/.zshrc)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Then reload
+source ~/.bashrc  # or ~/.zshrc
 ```
 
 ## 🎯 Usage Guide
@@ -279,6 +364,15 @@ Example structure:
 export TIX_HOME=/custom/path
 ```
 
+### PATH Configuration
+
+Make sure `~/.local/bin` is in your PATH:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 ### Aliases
 
 The installer automatically adds `alias t='tix'` to your shell config.
@@ -324,7 +418,7 @@ pytest tests/ -v --cov=tix --cov-report=term-missing
 
 ```
 tix-cli/
-├── install.sh              # Smart installer script
+├── install.sh              # Smart installer v2.0 (PEP 668 compatible)
 ├── tix/
 │   ├── __init__.py
 │   ├── cli.py              # Main CLI with auto-completion
@@ -385,18 +479,25 @@ t filter -t project-x
 t search "API" -t project-x
 ```
 
-## 🐛 Troubleshooting
+## 🐛 Common Issues and Solutions
 
 ### Installation Issues
 
-**Issue: One-command install fails**
+**Issue: "externally-managed-environment" error**
+- Use the smart installer: `curl -sSL .../install.sh | bash`
+- Or use pipx: `pipx install tix-cli`
+
+**Issue: `tix: command not found`**
 ```bash
-# Try manual installation
-git clone https://github.com/TheDevOpsBlueprint/tix-cli.git
-cd tix-cli
-pip install -e .
-tix --init-completion
+# Add to PATH
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
+```
+
+**Issue: Permission denied**
+```bash
+# Use user installation
+pip install --user tix-cli
 ```
 
 ### Shell Completion Issues
@@ -410,16 +511,6 @@ source ~/.bashrc  # or ~/.zshrc for zsh
 
 # Verify completion is loaded
 grep "TIX" ~/.bashrc
-```
-
-**Issue: `tix: command not found`**
-```bash
-# Ensure pip bin directory is in PATH
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-
-# Or reinstall
-pip install --user tix-cli
 ```
 
 ### Data Issues
@@ -472,3 +563,5 @@ If you find TIX useful, please consider giving it a star on GitHub!
 ---
 
 **Made with ❤️ by TheDevOpsBlueprint**
+
+*Enjoy lightning-fast task management with TIX!*
