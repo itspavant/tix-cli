@@ -17,6 +17,7 @@ A minimalist, powerful command-line task manager built with Python. Manage your 
 - **Reports**: Export your tasks in text or JSON format
 - **Colored Output**: Beautiful terminal UI with rich formatting
 - **Bulk Operations**: Mark multiple tasks as done at once
+- **Shell Completion**: Auto-completion support for bash, zsh, and fish shells
 
 ## 🚀 Quick Start
 
@@ -77,6 +78,64 @@ pip install -e .
 
 ```bash
 pip install tix-cli
+```
+
+### Shell Completion Setup
+
+TIX supports auto-completion for bash, zsh, and fish shells. This allows you to press Tab to complete commands, options, and arguments.
+
+#### Quick Install
+
+```bash
+# For bash
+tix completion --shell bash --install
+
+# For zsh  
+tix completion --shell zsh --install
+
+# For fish
+tix completion --shell fish --install
+```
+
+#### Manual Installation
+
+##### Bash
+
+```bash
+# Generate completion script
+tix completion --shell bash > ~/.bash_completion.d/tix.bash
+
+# Add to .bashrc
+echo 'source ~/.bash_completion.d/tix.bash' >> ~/.bashrc
+
+# Reload shell
+source ~/.bashrc
+```
+
+##### Zsh
+
+```bash
+# Create completions directory if it doesn't exist
+mkdir -p ~/.zsh/completions
+
+# Generate completion script
+tix completion --shell zsh > ~/.zsh/completions/_tix
+
+# Add to .zshrc (if not already present)
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+echo 'autoload -U compinit && compinit' >> ~/.zshrc
+
+# Reload shell
+exec zsh
+```
+
+##### Fish
+
+```bash
+# Generate completion script
+tix completion --shell fish > ~/.config/fish/completions/tix.fish
+
+# Completions are loaded automatically in new sessions
 ```
 
 ## 📖 Usage Guide
@@ -200,6 +259,20 @@ tix report --format json --output tasks.json
 tix report --output my-tasks.txt
 ```
 
+#### Shell Completion
+
+```bash
+# Generate completion script for your shell
+tix completion --shell bash
+tix completion --shell zsh
+tix completion --shell fish
+
+# Install completion automatically
+tix completion --shell bash --install
+tix completion --shell zsh --install
+tix completion --shell fish --install
+```
+
 ## 📁 Data Storage
 
 Tasks are stored in `~/.tix/tasks.json` in your home directory.
@@ -238,6 +311,7 @@ Example structure:
 | `tags` | List all tags | `tix tags` |
 | `stats` | Show statistics | `tix stats` |
 | `report` | Generate report | `tix report --format json` |
+| `completion` | Generate shell completion | `tix completion --shell bash` |
 
 ## 🔧 Configuration
 
@@ -359,6 +433,17 @@ tix filter -t project-x
 tix search "API" -t project-x
 ```
 
+### Using Shell Completion
+
+```bash
+# Tab completion examples
+tix <TAB>                    # Shows all available commands
+tix add <TAB>                # Shows add command options
+tix done <TAB>               # Lists task IDs
+tix filter --priority <TAB>  # Shows priority options (low, medium, high)
+tix edit 1 --<TAB>          # Shows all edit options
+```
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -388,6 +473,18 @@ export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 ```
 
+**Issue: Shell completion not working**
+```bash
+# For bash - ensure completion is sourced
+source ~/.bash_completion.d/tix.bash
+
+# For zsh - rebuild completion cache
+rm -f ~/.zcompdump && compinit
+
+# For fish - check completion file exists
+ls ~/.config/fish/completions/tix.fish
+```
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
@@ -395,7 +492,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 🙏 Acknowledgments
 
 Built with:
-- [Click](https://click.palletsprojects.com/) - CLI framework
+- [Click](https://click.palletsprojects.com/) - CLI framework with completion support
 - [Rich](https://rich.readthedocs.io/) - Terminal formatting
 - [Python](https://python.org/) - Programming language
 
