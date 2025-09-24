@@ -15,19 +15,18 @@ A minimalist, powerful command-line task manager built with Python. Manage your 
 curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
 ```
 
-**That's it!** This smart installer (v2.0) will:
+**That's it!** This smart installer (v8.0) will:
 - ✅ Detect your OS and shell automatically
 - ✅ Handle Python 3.12+ managed environments (PEP 668)
 - ✅ Install using pipx for isolation (recommended)
 - ✅ Configure shell completion automatically
-- ✅ Add convenient alias (`t` for `tix`)
 - ✅ Set up PATH correctly
 - ✅ Offer to restart your shell with everything ready
 
 After installation, you can immediately use:
 ```bash
 tix <TAB><TAB>  # Tab completion works!
-t add "My task"  # Short alias works!
+tix add "My task"  # Start managing tasks!
 ```
 
 ## ✨ Features
@@ -44,7 +43,6 @@ t add "My task"  # Short alias works!
 - **Colored Output**: Beautiful terminal UI with rich formatting
 - **Bulk Operations**: Mark multiple tasks as done at once
 - **Auto Shell Completion**: Tab completion works out of the box for bash, zsh, and fish
-- **Convenient Alias**: Use `t` instead of `tix` for faster typing
 
 ## 📖 Installation Methods
 
@@ -79,10 +77,6 @@ python3 -m pipx ensurepath
 
 # Install TIX
 pipx install tix-cli
-
-# Setup completion
-tix --init-completion
-source ~/.bashrc  # or ~/.zshrc
 ```
 
 ### Using pip with Virtual Environment
@@ -94,9 +88,6 @@ source tix-env/bin/activate
 
 # Install TIX
 pip install tix-cli
-
-# Setup completion
-tix --init-completion
 ```
 
 ### From Source
@@ -176,8 +167,6 @@ source ~/.bashrc  # or ~/.zshrc
 ```bash
 # Simple task
 tix add "Write documentation"
-# Or use alias
-t add "Write documentation"
 
 # With priority (high/medium/low)
 tix add "Fix critical bug" -p high
@@ -194,8 +183,6 @@ tix add "Deploy to production" -p high -t devops -t release
 ```bash
 # Show active tasks
 tix ls
-# Or
-t ls
 
 # Show all tasks (including completed)
 tix ls --all
@@ -223,6 +210,7 @@ tix rm 1
 
 # Force remove without confirmation
 tix rm 2 --confirm
+tix rm 2 -y
 
 # Clear all completed tasks
 tix clear --completed
@@ -262,7 +250,9 @@ tix search "api" -p high -t backend
 tix filter -p high           # High priority tasks
 tix filter -t urgent         # Tasks tagged "urgent"
 tix filter --active          # Only active tasks
+tix filter -a                # Short form for active
 tix filter --completed       # Only completed tasks
+tix filter -c                # Short form for completed
 
 # List all tags
 tix tags
@@ -279,12 +269,14 @@ tix stats
 
 # Detailed statistics
 tix stats --detailed
+tix stats -d
 
 # Generate text report
 tix report
 
 # Export as JSON
 tix report --format json --output tasks.json
+tix report -f json -o tasks.json
 
 # Export as text file
 tix report --output my-tasks.txt
@@ -297,7 +289,7 @@ Tab completion works automatically after installation:
 ```bash
 # Complete commands
 tix <TAB><TAB>
-# Shows: add clear completion done done-all edit filter ls move priority report rm search stats tags undo
+# Shows: add clear done done-all edit filter ls move priority report rm search stats tags undo
 
 # Complete options
 tix add --<TAB><TAB>
@@ -306,10 +298,6 @@ tix add --<TAB><TAB>
 # Complete option values
 tix add --priority <TAB><TAB>
 # Shows: high low medium
-
-# Works with the alias too
-t <TAB><TAB>
-t add --<TAB><TAB>
 ```
 
 ## 📁 Data Storage
@@ -342,7 +330,7 @@ Example structure:
 | `ls` | List tasks | `tix ls --all` |
 | `done` | Complete a task | `tix done 1` |
 | `done-all` | Complete multiple tasks | `tix done-all 1 2 3` |
-| `rm` | Remove a task | `tix rm 1` |
+| `rm` | Remove a task | `tix rm 1 -y` |
 | `clear` | Clear tasks in bulk | `tix clear --completed` |
 | `edit` | Edit task properties | `tix edit 1 --text "New"` |
 | `priority` | Change task priority | `tix priority 1 high` |
@@ -351,9 +339,64 @@ Example structure:
 | `search` | Search tasks by text | `tix search "bug"` |
 | `filter` | Filter by criteria | `tix filter -p high` |
 | `tags` | List all tags | `tix tags` |
-| `stats` | Show statistics | `tix stats` |
-| `report` | Generate report | `tix report --format json` |
-| `completion` | Manage shell completion | `tix completion --reset` |
+| `stats` | Show statistics | `tix stats -d` |
+| `report` | Generate report | `tix report -f json -o tasks.json` |
+
+## 🗑️ Uninstalling TIX
+
+### Complete Uninstall
+
+To completely remove TIX from your system:
+
+```bash
+# If installed from source with Makefile
+make uninstall
+
+# Or manually uninstall based on installation method
+```
+
+#### If installed with pipx:
+```bash
+pipx uninstall tix-cli
+rm -rf ~/.tix  # Remove task data (optional)
+```
+
+#### If installed with pip:
+```bash
+pip uninstall tix-cli -y
+# or
+pip3 uninstall tix-cli -y
+rm -rf ~/.tix  # Remove task data (optional)
+```
+
+#### If installed in virtual environment:
+```bash
+# Deactivate and remove the virtual environment
+deactivate
+rm -rf tix-env  # or whatever you named your venv
+rm -rf ~/.tix  # Remove task data (optional)
+```
+
+#### Clean up shell configuration (optional):
+```bash
+# Remove TIX completion from your shell config
+# For bash: edit ~/.bashrc or ~/.bash_profile
+# For zsh: edit ~/.zshrc
+# For fish: rm ~/.config/fish/completions/tix.fish
+
+# Remove lines containing:
+# - TIX Completion
+# - _tix_simple
+# - complete -F _tix_simple tix
+```
+
+#### Backup your tasks before uninstalling:
+```bash
+# Save your tasks before removing TIX
+tix report -f json -o my-tasks-backup.json
+# or
+cp ~/.tix/tasks.json my-tasks-backup.json
+```
 
 ## 🔧 Configuration
 
@@ -371,20 +414,6 @@ Make sure `~/.local/bin` is in your PATH:
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
 export PATH="$HOME/.local/bin:$PATH"
-```
-
-### Aliases
-
-The installer automatically adds `alias t='tix'` to your shell config.
-
-You can add more aliases manually:
-
-```bash
-# Add to ~/.bashrc or ~/.zshrc
-alias ta='tix add'
-alias tl='tix ls'
-alias td='tix done'
-alias ts='tix search'
 ```
 
 ## 🧪 Development
@@ -411,6 +440,8 @@ make test
 pytest tests/ -v
 
 # Run with coverage
+make test-coverage
+# Or
 pytest tests/ -v --cov=tix --cov-report=term-missing
 ```
 
@@ -418,68 +449,82 @@ pytest tests/ -v --cov=tix --cov-report=term-missing
 
 ```
 tix-cli/
-├── install.sh              # Smart installer v2.0 (PEP 668 compatible)
+├── install.sh              # Smart installer v8.0 (PEP 668 compatible)
 ├── tix/
 │   ├── __init__.py
 │   ├── cli.py              # Main CLI with auto-completion
 │   ├── models.py           # Task data model
 │   ├── commands/
+│   │   ├── __init__.py
 │   │   └── stats.py        # Statistics module
 │   └── storage/
+│       ├── __init__.py
 │       └── json_storage.py # Storage backend
 ├── tests/
+│   ├── __init__.py
 │   ├── test_cli.py
 │   ├── test_models.py
 │   ├── test_storage.py
 │   └── test_completion.py
-├── setup.py                # With post-install hooks
+├── setup.py                # Package configuration
 ├── Makefile               # Developer commands
 ├── requirements.txt
+├── pyproject.toml         # Python tooling config
+├── .flake8               # Linting configuration
 └── README.md
 ```
+
+### CI/CD Pipeline
+
+The project includes GitHub Actions workflows for:
+- Testing across Python 3.8-3.12
+- Code quality checks (flake8, black, isort)
+- Building distribution packages
+- Installation testing on Ubuntu and macOS
+- Coverage reporting with Codecov
 
 ## 📝 Examples
 
 ### Daily Workflow
 
 ```bash
-# Morning: Add today's tasks (using alias for speed)
-t add "Team standup meeting" -p high -t work
-t add "Review pull requests" -p medium -t work
-t add "Fix login bug" -p high -t bug -t urgent
-t add "Update documentation" -p low -t docs
+# Morning: Add today's tasks
+tix add "Team standup meeting" -p high -t work
+tix add "Review pull requests" -p medium -t work
+tix add "Fix login bug" -p high -t bug -t urgent
+tix add "Update documentation" -p low -t docs
 
 # Check your tasks
-t ls
+tix ls
 
-# Complete tasks using tab completion for IDs
-t done<TAB> 1<TAB>  # Tab shows available task IDs
-t done 3
+# Complete tasks
+tix done 1
+tix done 3
 
 # End of day: View progress
-t stats
+tix stats
 
 # Generate report
-t report --output daily-report.txt
+tix report --output daily-report.txt
 ```
 
 ### Project Management
 
 ```bash
 # Add project tasks with tags
-t add "Design database schema" -p high -t project-x -t backend
-t add "Create API endpoints" -p high -t project-x -t backend
-t add "Write unit tests" -p medium -t project-x -t testing
-t add "Setup CI/CD pipeline" -p medium -t project-x -t devops
+tix add "Design database schema" -p high -t project-x -t backend
+tix add "Create API endpoints" -p high -t project-x -t backend
+tix add "Write unit tests" -p medium -t project-x -t testing
+tix add "Setup CI/CD pipeline" -p medium -t project-x -t devops
 
 # View project tasks
-t filter -t project-x
+tix filter -t project-x
 
 # Search within project
-t search "API" -t project-x
+tix search "API" -t project-x
 ```
 
-## 🐛 Common Issues and Solutions
+## 🛠 Common Issues and Solutions
 
 ### Installation Issues
 
@@ -504,13 +549,14 @@ pip install --user tix-cli
 
 **Issue: Tab completion not working**
 ```bash
-# Reset and reconfigure
-tix completion --reset
-tix --init-completion
-source ~/.bashrc  # or ~/.zshrc for zsh
+# For bash, check if completion is loaded
+grep "_tix_simple" ~/.bashrc
 
-# Verify completion is loaded
-grep "TIX" ~/.bashrc
+# If not found, re-run installer
+curl -sSL https://raw.githubusercontent.com/TheDevOpsBlueprint/tix-cli/main/install.sh | bash
+
+# Or manually add completion (bash)
+source ~/.bashrc
 ```
 
 ### Data Issues
@@ -534,8 +580,6 @@ We welcome contributions! Please follow these guidelines:
 4. Write tests for new features
 5. Ensure all tests pass (`make test`)
 6. Submit a Pull Request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 📄 License
 
