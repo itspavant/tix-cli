@@ -653,6 +653,7 @@ def open(task_id):
     for url in task.links:
         safe_open(url, is_link=True)  
 
+@cli.command()
 @click.option('--all', '-a', 'show_all', is_flag=True, help='Show completed tasks too')
 def interactive(show_all):
     """launch interactive terminal ui"""
