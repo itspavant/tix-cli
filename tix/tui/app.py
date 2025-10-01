@@ -112,12 +112,21 @@ class Tix(App):
         task = self._storage.get_task(task_id)
         if not task:
             return
-        # if the cursor is on the tags column, edit tags; otherwise edit text
+        # if the cursor is on the priority column, cycle priority; if on the tags column, edit tags; otherwise edit text
         try:
             col = table.cursor_column
         except Exception:
             col = 3
-        if col == 4:
+        if col == 2:
+            cycle = ["low", "medium", "high"]
+            try:
+                idx = cycle.index(task.priority)
+            except ValueError:
+                idx = 0
+            task.priority = cycle[(idx + 1) % len(cycle)]
+            self._storage.update_task(task)
+            self._refresh()
+        elif col == 4:
             existing = ", ".join(task.tags)
             self.push_screen(PromptModal("edit tags (comma-separated):", default=existing), lambda v: self._handle_edit_tags(task.id, v))
         else:
