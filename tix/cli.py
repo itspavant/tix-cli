@@ -4,8 +4,12 @@ from rich.table import Table
 from pathlib import Path
 from tix.storage.json_storage import TaskStorage
 from datetime import datetime
+import subprocess
+import platform
 import os
 import sys
+from importlib import import_module
+
 
 # Initialize console and storage
 console = Console()
@@ -34,17 +38,47 @@ def cli(ctx):
               type=click.Choice(['low', 'medium', 'high']),
               help='Set task priority')
 @click.option('--tag', '-t', multiple=True, help='Add tags to task')
-def add(task, priority, tag):
+@click.option('--attach', '-f', multiple=True, help='Attach file(s)')
+@click.option('--link', '-l', multiple=True, help='Attach URL(s)')
+def add(task, priority, tag, attach, link):
     """Add a new task"""
+    if not task or not task.strip():
+        console.print("[red]✗[/red] Task text cannot be empty")
+        sys.exit(1)
+
     new_task = storage.add_task(task, priority, list(tag))
+    # Handle attachments
+    if attach:
+        attachment_dir = Path.home() / ".tix" / "attachments" / str(new_task.id)
+        attachment_dir.mkdir(parents=True, exist_ok=True)
+        for file_path in attach:
+            try:
+                src = Path(file_path).expanduser().resolve()  
+                if not src.exists():
+                    console.print(f"[red]✗[/red] File not found: {file_path}")
+                    continue
+                dest = attachment_dir / src.name
+                dest.write_bytes(src.read_bytes())
+                new_task.attachments.append(str(dest))
+            except Exception as e:
+                console.print(f"[red]✗[/red] Failed to attach {file_path}: {e}")
+
+    # Handle links
+    if link:
+        new_task.links.extend(link)
+
+    storage.update_task(new_task)
+
     color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
     if tag:
         console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
+    if attach or link:
+        console.print(f"[dim]  Attachments/Links added[/dim]")
 
 
 @cli.command()
-@click.option('--all', '-a', is_flag=True, help='Show completed tasks too')
+@click.option("--all", "-a", is_flag=True, help="Show completed tasks too")
 def ls(all):
     """List all tasks"""
     tasks = storage.load_tasks() if all else storage.get_active_tasks()
@@ -59,32 +93,43 @@ def ls(all):
     table.add_column("Priority", width=8)
     table.add_column("Task")
     table.add_column("Tags", style="dim")
+    count = dict()
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✔" if task.completed else "○"
-        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
+
+        # Show paperclip if task has attachments or links
+        attach_icon = " 📎" if task.attachments or task.links else ""
 
         task_style = "dim strike" if task.completed else ""
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
-            f"[{task_style}]{task.text}[/{task_style}]" if task.completed else task.text,
+            f"[{task_style}]{task.text}[/{task_style}]{attach_icon}" if task.completed else f"{task.text}{attach_icon}",
             tags_str
         )
+        count[task.completed] = count.get(task.completed, 0) + 1
 
     console.print(table)
+    console.print("\n")
+    console.print(f"[cyan]Total tasks:{sum(count.values())}")
+    console.print(f"[red]Active tasks:{count.get(False,0)}")
+    console.print(f"[green]Completed tasks:{count.get(True,0)}")
 
     # Show summary
     if all:
         active = len([t for t in tasks if not t.completed])
         completed = len([t for t in tasks if t.completed])
-        console.print(f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]")
+        console.print(
+            f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]"
+        )
 
 
 @cli.command()
-@click.argument('task_id', type=int)
+@click.argument("task_id", type=int)
 def done(task_id):
     """Mark a task as done"""
     task = storage.get_task(task_id)
@@ -102,7 +147,7 @@ def done(task_id):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
+@click.argument("task_id", type=int)
 @click.option("--confirm", "-y", is_flag=True, help="Skip confirmation")
 def rm(task_id, confirm):
     """Remove a task"""
@@ -121,8 +166,8 @@ def rm(task_id, confirm):
 
 
 @cli.command()
-@click.option('--completed/--active', default=True, help='Clear completed or active tasks')
-@click.option('--force', '-f', is_flag=True, help='Skip confirmation')
+@click.option("--completed/--active", default=True, help="Clear completed or active tasks")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 def clear(completed, force):
     """Clear multiple tasks at once"""
     tasks = storage.load_tasks()
@@ -158,7 +203,7 @@ def clear(completed, force):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
+@click.argument("task_id", type=int)
 def undo(task_id):
     """Mark a completed task as active again"""
     task = storage.get_task(task_id)
@@ -176,8 +221,8 @@ def undo(task_id):
     console.print(f"[green]✔[/green] Reactivated: {task.text}")
 
 
-@cli.command(name='done-all')
-@click.argument('task_ids', nargs=-1, type=int, required=True)
+@cli.command(name="done-all")
+@click.argument("task_ids", nargs=-1, type=int, required=True)
 def done_all(task_ids):
     """Mark multiple tasks as done"""
     completed = []
@@ -214,7 +259,9 @@ def done_all(task_ids):
 @click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='New priority')
 @click.option('--add-tag', multiple=True, help='Add tags')
 @click.option('--remove-tag', multiple=True, help='Remove tags')
-def edit(task_id, text, priority, add_tag, remove_tag):
+@click.option('--attach', '-f', multiple=True, help='Attach file(s)')
+@click.option('--link', '-l', multiple=True, help='Attach URL(s)')
+def edit(task_id, text, priority, add_tag, remove_tag, attach, link):
     """Edit a task"""
     task = storage.get_task(task_id)
     if not task:
@@ -243,6 +290,22 @@ def edit(task_id, text, priority, add_tag, remove_tag):
             task.tags.remove(tag)
             changes.append(f"-tag: '{tag}'")
 
+    # Handle attachments
+    if attach:
+        attachment_dir = Path.home() / ".tix/attachments" / str(task.id)
+        attachment_dir.mkdir(parents=True, exist_ok=True)
+        for file_path in attach:
+            src = Path(file_path)
+            dest = attachment_dir / src.name
+            dest.write_bytes(src.read_bytes())
+            task.attachments.append(str(dest))
+        changes.append(f"attachments added: {[Path(f).name for f in attach]}")
+
+    # Handle links
+    if link:
+        task.links.extend(link)
+        changes.append(f"links added: {list(link)}")
+
     if changes:
         storage.update_task(task)
         console.print(f"[green]✔[/green] Updated task #{task_id}:")
@@ -253,8 +316,8 @@ def edit(task_id, text, priority, add_tag, remove_tag):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
-@click.argument('priority', type=click.Choice(['low', 'medium', 'high']))
+@click.argument("task_id", type=int)
+@click.argument("priority", type=click.Choice(["low", "medium", "high"]))
 def priority(task_id, priority):
     """Quick priority change"""
     task = storage.get_task(task_id)
@@ -266,13 +329,15 @@ def priority(task_id, priority):
     task.priority = priority
     storage.update_task(task)
 
-    color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
-    console.print(f"[green]✔[/green] Changed priority: {old_priority} → [{color}]{priority}[/{color}]")
+    color = {"high": "red", "medium": "yellow", "low": "green"}[priority]
+    console.print(
+        f"[green]✔[/green] Changed priority: {old_priority} → [{color}]{priority}[/{color}]"
+    )
 
 
 @cli.command()
-@click.argument('from_id', type=int)
-@click.argument('to_id', type=int)
+@click.argument("from_id", type=int)
+@click.argument("to_id", type=int)
 def move(from_id, to_id):
     """Move/renumber a task to a different ID"""
     if from_id == to_id:
@@ -305,10 +370,12 @@ def move(from_id, to_id):
 
 
 @cli.command()
-@click.argument('query')
-@click.option('--tag', '-t', help='Filter by tag')
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='Filter by priority')
-@click.option('--completed', '-c', is_flag=True, help='Search in completed tasks')
+@click.argument("query")
+@click.option("--tag", "-t", help="Filter by tag")
+@click.option(
+    "--priority", "-p", type=click.Choice(["low", "medium", "high"]), help="Filter by priority"
+)
+@click.option("--completed", "-c", is_flag=True, help="Search in completed tasks")
 def search(query, tag, priority, completed):
     """Search tasks by text"""
     tasks = storage.load_tasks()
@@ -344,29 +411,33 @@ def search(query, tag, priority, completed):
 
     for task in results:
         status = "✔" if task.completed else "○"
-        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
 
         # Highlight matching text
-        highlighted_text = task.text.replace(
-            query, f"[bold yellow]{query}[/bold yellow]"
-        ) if query.lower() in task.text.lower() else task.text
+        highlighted_text = (
+            task.text.replace(query, f"[bold yellow]{query}[/bold yellow]")
+            if query.lower() in task.text.lower()
+            else task.text
+        )
 
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
             highlighted_text,
-            tags_str
+            tags_str,
         )
 
     console.print(table)
 
 
 @cli.command()
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='Filter by priority')
-@click.option('--tag', '-t', help='Filter by tag')
-@click.option('--completed/--active', '-c/-a', default=None, help='Filter by completion status')
+@click.option(
+    "--priority", "-p", type=click.Choice(["low", "medium", "high"]), help="Filter by priority"
+)
+@click.option("--tag", "-t", help="Filter by tag")
+@click.option("--completed/--active", "-c/-a", default=None, help="Filter by completion status")
 def filter(priority, tag, completed):
     """Filter tasks by criteria"""
     tasks = storage.load_tasks()
@@ -406,21 +477,21 @@ def filter(priority, tag, completed):
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✔" if task.completed else "○"
-        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
             task.text,
-            tags_str
+            tags_str,
         )
 
     console.print(table)
 
 
 @cli.command()
-@click.option('--no-tags', is_flag=True, help='Show tasks without tags')
+@click.option("--no-tags", is_flag=True, help="Show tasks without tags")
 def tags(no_tags):
     """List all unique tags or tasks without tags"""
     tasks = storage.load_tasks()
@@ -453,10 +524,11 @@ def tags(no_tags):
 
 
 @cli.command()
-@click.option('--detailed', '-d', is_flag=True, help='Show detailed breakdown')
+@click.option("--detailed", "-d", is_flag=True, help="Show detailed breakdown")
 def stats(detailed):
     """Show task statistics"""
     from tix.commands.stats import show_stats
+
     show_stats(storage)
 
     if detailed:
@@ -467,6 +539,7 @@ def stats(detailed):
 
             # Tasks by day
             from collections import defaultdict
+
             by_day = defaultdict(list)
 
             for task in tasks:
@@ -482,7 +555,7 @@ def stats(detailed):
 
 
 @cli.command()
-@click.option('--format', '-f', type=click.Choice(['text', 'json','markdown']), default='text', help='Output format')
+@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
 @click.option('--output', '-o', type=click.Path(), help='Output to file')
 def report(format, output):
     """Generate a task report"""
@@ -495,16 +568,13 @@ def report(format, output):
     active = [t for t in tasks if not t.completed]
     completed = [t for t in tasks if t.completed]
 
-    if format == 'json':
+    if format == "json":
         import json
+
         report_data = {
-            'generated': datetime.now().isoformat(),
-            'summary': {
-                'total': len(tasks),
-                'active': len(active),
-                'completed': len(completed)
-            },
-            'tasks': [t.to_dict() for t in tasks]
+            "generated": datetime.now().isoformat(),
+            "summary": {"total": len(tasks), "active": len(active), "completed": len(completed)},
+            "tasks": [t.to_dict() for t in tasks],
         }
         report_text = json.dumps(report_data, indent=2)
     elif format == 'markdown':
@@ -569,18 +639,14 @@ def report(format, output):
             f"Completed: {len(completed)}",
             "",
             "ACTIVE TASKS:",
-            "-" * 20
+            "-" * 20,
         ]
 
         for task in active:
             tags = f" [{', '.join(task.tags)}]" if task.tags else ""
             report_lines.append(f"#{task.id} [{task.priority}] {task.text}{tags}")
 
-        report_lines.extend([
-            "",
-            "COMPLETED TASKS:",
-            "-" * 20
-        ])
+        report_lines.extend(["", "COMPLETED TASKS:", "-" * 20])
 
         for task in completed:
             tags = f" [{', '.join(task.tags)}]" if task.tags else ""
@@ -594,6 +660,70 @@ def report(format, output):
     else:
         console.print(report_text)
 
+
+@cli.command()
+@click.argument('task_id', type=int)
+def open(task_id):
+    """Open all attachments and links for a task"""
+    task = storage.get_task(task_id)
+    if not task:
+        console.print(f"[red]✗[/red] Task #{task_id} not found")
+        return
+
+    if not task.attachments and not task.links:
+        console.print(f"[yellow]![/yellow] Task {task_id} has no attachments or links")
+        return
+    
+    # Helper to open files cross-platform
+    def safe_open(path_or_url, is_link=False):
+        """Cross-platform safe opener for files and links (non-blocking)."""
+        system = platform.system()
+
+        try:
+            if system == "Linux":
+                if "microsoft" in platform.release().lower():
+                    subprocess.Popen(["explorer.exe", str(path_or_url)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    subprocess.Popen(["xdg-open", str(path_or_url)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            elif system == "Darwin":  # macOS
+                subprocess.Popen(["open", str(path_or_url)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            elif system == "Windows":
+                subprocess.Popen(["explorer.exe", str(path_or_url)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            console.print(f"[green]✔[/green] Opened {'link' if is_link else 'file'}: {path_or_url}")
+
+        except Exception as e:
+            console.print(f"[yellow]![/yellow] Could not open {'link' if is_link else 'file'}: {path_or_url} ({e})")
+
+    # Open attachments
+    for file_path in task.attachments:
+        path = Path(file_path)
+        if not path.exists():
+            console.print(f"[red]✗[/red] File not found: {file_path}")
+            continue
+        safe_open(path)   
+
+    # Open links
+    for url in task.links:
+        safe_open(url, is_link=True)  
+
+@cli.command()
+@click.option('--all', '-a', 'show_all', is_flag=True, help='Show completed tasks too')
+def interactive(show_all):
+    """launch interactive terminal ui"""
+    try:
+        from tix.tui.app import Tix
+    except Exception as e:
+        console.print(f"[red]failed to load tui: {e}[/red]")
+        sys.exit(1)
+    app = Tix(show_all=show_all)
+    app.run()
 
 if __name__ == '__main__':
     cli()

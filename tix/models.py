@@ -12,6 +12,8 @@ class Task:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     completed_at: Optional[str] = None
     tags: List[str] = field(default_factory=list)
+    attachments: List[str] = field(default_factory=list)
+    links: List[str] = field(default_factory=list)  
 
     def to_dict(self) -> dict:
         """Convert task to dictionary for JSON serialization"""
@@ -22,13 +24,25 @@ class Task:
             'completed': self.completed,
             'created_at': self.created_at,
             'completed_at': self.completed_at,
-            'tags': self.tags
+            'tags': self.tags,
+            'attachments': self.attachments,
+            'links': self.links,
         }
 
     @classmethod
     def from_dict(cls, data: dict):
-        """Create task from dictionary"""
-        return cls(**data)
+        """Create task from dictionary (handles old tasks safely)"""
+        return cls(
+            id=data['id'],
+            text=data['text'],
+            priority=data.get('priority', 'medium'),
+            completed=data.get('completed', False),
+            created_at=data.get('created_at', datetime.now().isoformat()),
+            completed_at=data.get('completed_at'),
+            tags=data.get('tags', []),
+            attachments=data.get('attachments', []),  
+            links=data.get('links', [])               
+        )
 
     def mark_done(self):
         """Mark task as completed with timestamp"""

@@ -43,6 +43,8 @@ tix add "My task"  # Start managing tasks!
 - **Colored Output**: Beautiful terminal UI with rich formatting
 - **Bulk Operations**: Mark multiple tasks as done at once
 - **Auto Shell Completion**: Tab completion works out of the box for bash, zsh, and fish
+- **Attachments & Links**: Attach files or add reference URLs to tasks
+- **Open Attachments**: Use `tix open <id>` to quickly open all files/links for a task
 
 ## 📖 Installation Methods
 
@@ -176,6 +178,12 @@ tix add "Review PR" -t work -t urgent
 
 # Multiple tags and priority
 tix add "Deploy to production" -p high -t devops -t release
+
+# With file attachments (can repeat)
+tix add "Review design doc" -f ~/docs/design.pdf -f ~/notes.txt
+
+# With reference links (can repeat)
+tix add "Research API" -l https://api.example.com -l https://swagger.io
 ```
 
 #### Listing Tasks
@@ -235,6 +243,9 @@ tix edit 1 --add-tag urgent --remove-tag low-priority
 
 # Multiple edits at once
 tix edit 1 --text "New text" --priority high --add-tag important
+
+# Add attachments and links to an existing task
+tix edit 1 -f ~/extra.docx -l https://extra-resource.com
 ```
 
 #### Searching and Filtering
@@ -259,6 +270,13 @@ tix tags
 
 # Show untagged tasks
 tix tags --no-tags
+```
+
+#### Opening Attachments and Links
+
+```bash
+# Open all files and links attached to a task
+tix open 1
 ```
 
 #### Statistics and Reports
@@ -326,13 +344,13 @@ Example structure:
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `add` | Add a new task | `tix add "Task" -p high -t work` |
+| `add` | Add a new task | `tix add "Task" -p high -t work -f file.txt -l https://example.com` |
 | `ls` | List tasks | `tix ls --all` |
 | `done` | Complete a task | `tix done 1` |
 | `done-all` | Complete multiple tasks | `tix done-all 1 2 3` |
 | `rm` | Remove a task | `tix rm 1 -y` |
 | `clear` | Clear tasks in bulk | `tix clear --completed` |
-| `edit` | Edit task properties | `tix edit 1 --text "New"` |
+| `edit` | Edit task properties | `tix edit 1 --text "New" -f notes.md -l https://example.com` |
 | `priority` | Change task priority | `tix priority 1 high` |
 | `move` | Change task ID | `tix move 1 10` |
 | `undo` | Reactivate completed task | `tix undo 1` |
@@ -341,6 +359,7 @@ Example structure:
 | `tags` | List all tags | `tix tags` |
 | `stats` | Show statistics | `tix stats -d` |
 | `report` | Generate report | `tix report -f json -o tasks.json` |
+| `open` | Open attachments and links for a task | `tix open 1` |
 
 ## 🗑️ Uninstalling TIX
 
