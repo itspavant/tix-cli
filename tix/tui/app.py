@@ -13,7 +13,7 @@ from tix.storage.json_storage import TaskStorage
 from tix.models import Task  # type: ignore
 
 
-class TixTuiApp(App):
+class Tix(App):
     CSS = """
     Screen { }
     #body { height: 1fr; }
@@ -112,7 +112,16 @@ class TixTuiApp(App):
         task = self._storage.get_task(task_id)
         if not task:
             return
-        self.push_screen(PromptModal("edit text:", default=task.text), lambda v: self._handle_edit(task.id, v))
+        # if the cursor is on the tags column, edit tags; otherwise edit text
+        try:
+            col = table.cursor_column
+        except Exception:
+            col = 3
+        if col == 4:
+            existing = ", ".join(task.tags)
+            self.push_screen(PromptModal("edit tags (comma-separated):", default=existing), lambda v: self._handle_edit_tags(task.id, v))
+        else:
+            self.push_screen(PromptModal("edit text:", default=task.text), lambda v: self._handle_edit(task.id, v))
 
     def _handle_edit(self, task_id: int, value: Optional[str]) -> None:
         if value is None:
@@ -121,9 +130,8 @@ class TixTuiApp(App):
         if not task:
             return
         task.text = value
-        # after text, prompt for tags (comma-separated)
-        existing = ", ".join(task.tags)
-        self.push_screen(PromptModal("edit tags (comma-separated):", default=existing), lambda v: self._handle_edit_tags(task_id, v))
+        self._storage.update_task(task)
+        self._refresh()
 
     def _handle_edit_tags(self, task_id: int, value: Optional[str]) -> None:
         task = self._storage.get_task(task_id)

@@ -551,11 +551,11 @@ def report(format, output):
 def interactive(show_all):
     """launch interactive terminal ui"""
     try:
-        from tix.tui.app import TixTuiApp
+        from tix.tui.app import Tix
     except Exception as e:
         console.print(f"[red]failed to load tui: {e}[/red]")
         sys.exit(1)
-    app = TixTuiApp(show_all=show_all)
+    app = Tix(show_all=show_all)
     app.run()
 
 if __name__ == '__main__':
