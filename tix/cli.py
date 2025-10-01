@@ -482,7 +482,7 @@ def stats(detailed):
 
 
 @cli.command()
-@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
+@click.option('--format', '-f', type=click.Choice(['text', 'json','markdown']), default='text', help='Output format')
 @click.option('--output', '-o', type=click.Path(), help='Output to file')
 def report(format, output):
     """Generate a task report"""
@@ -507,6 +507,56 @@ def report(format, output):
             'tasks': [t.to_dict() for t in tasks]
         }
         report_text = json.dumps(report_data, indent=2)
+    elif format == 'markdown':
+        report_lines = [
+            "# TIX Task Report",
+            "",
+            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "",
+            "## Summary",
+            "",
+            f"- **Total Tasks:** {len(tasks)}",
+            f"- **Active:** {len(active)}",
+            f"- **Completed:** {len(completed)}",
+            ""
+        ]
+        priority_order = ['high', 'medium', 'low']
+        active_by_priority = {p: [] for p in priority_order}
+        for task in active:
+            active_by_priority[task.priority].append(task)
+
+        report_lines.extend([
+            "## Active Tasks",
+            "",
+        ])
+        for priority in priority_order:
+            tasks_in_priority = active_by_priority[priority]
+            if tasks_in_priority:
+                priority_emoji = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}
+                report_lines.append(f"### {priority_emoji[priority]} {priority.capitalize()} Priority")
+                report_lines.append("")
+                
+                for task in tasks_in_priority:
+                    tags = f" `{', '.join(task.tags)}`" if task.tags else ""
+                    report_lines.append(f"- [ ] **#{task.id}** {task.text}{tags}")
+                
+                report_lines.append("")
+        if completed:
+            report_lines.extend([
+                "## Completed Tasks",
+                "",
+                "| ID | Task | Priority | Tags | Completed At |",
+                "|---|---|---|---|---|"
+            ])
+            for task in completed:
+                tags = ", ".join([f"`{tag}`" for tag in task.tags]) if task.tags else "-"
+                completed_date = datetime.fromisoformat(task.completed_at).strftime('%Y-%m-%d %H:%M') if task.completed_at else "-"
+                priority_emoji = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}
+                report_lines.append(
+                    f"| #{task.id} | ~~{task.text}~~ | {priority_emoji[task.priority]} {task.priority} | {tags} | {completed_date} |"
+                )
+            report_lines.append("")
+        report_text = "\n".join(report_lines)
     else:
         # Text format
         report_lines = [
