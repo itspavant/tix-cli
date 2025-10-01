@@ -109,3 +109,7 @@ class TaskStorage:
     def get_completed_tasks(self) -> List[Task]:
         """Get all completed tasks"""
         return [t for t in self.load_tasks() if t.completed]
+    
+    def get_attachment_dir(self, task_id: int) -> Path:
+        """Return the path where attachments for a task should be stored"""
+        return Path.home() / ".tix" / "attachments" / str(task_id)
