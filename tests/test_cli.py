@@ -183,3 +183,105 @@ def test_filter_command(runner):
             assert result.exit_code == 0
             assert 'Active task' in result.output
             assert 'Completed task' not in result.output
+            
+
+def test_add_task_with_attachments_and_links(runner, tmp_path):
+    """Test adding a task with file attachments and URLs"""
+    # Create a temporary file to attach
+    temp_file = tmp_path / "example.txt"
+    temp_file.write_text("Hello World")
+
+    temp_storage = tmp_path / "tasks.json"
+    temp_storage.write_text('[]')
+
+    from tix.storage.json_storage import TaskStorage
+    test_storage = TaskStorage(temp_storage)
+
+    with patch('tix.cli.storage', test_storage):
+        result = runner.invoke(cli, [
+            'add', 'Task with attachments',
+            '--attach', str(temp_file),
+            '--link', 'https://example.com'
+        ])
+        assert result.exit_code == 0
+        assert 'Added task' in result.output
+        assert 'Attachments/Links added' in result.output
+
+        # Verify task in storage
+        task = test_storage.get_task(1)
+        assert task is not None
+        assert len(task.attachments) == 1
+        assert task.links == ['https://example.com']
+
+
+def test_edit_task_add_attachments_and_links(runner, tmp_path):
+    """Test editing an existing task to add attachments and URLs"""
+    temp_file = tmp_path / "edit.txt"
+    temp_file.write_text("Edit content")
+
+    temp_storage = tmp_path / "tasks.json"
+    temp_storage.write_text(
+        '[{"id": 1, "text": "Original task", "priority": "medium", "completed": false, "created_at": "2025-01-01T00:00:00", "completed_at": null, "tags": []}]'
+    )
+
+    from tix.storage.json_storage import TaskStorage
+    test_storage = TaskStorage(temp_storage)
+
+    with patch('tix.cli.storage', test_storage):
+        result = runner.invoke(cli, [
+            'edit', '1',
+            '--attach', str(temp_file),
+            '--link', 'https://edit.com'
+        ])
+        assert result.exit_code == 0
+        assert 'attachments added' in result.output
+        assert 'links added' in result.output
+
+        task = test_storage.get_task(1)
+        assert len(task.attachments) == 1
+        assert task.links == ['https://edit.com']
+
+
+def test_ls_shows_attachment_icon(runner, tmp_path):
+    """Test that tasks with attachments/links show the 📎 icon"""
+    temp_storage = tmp_path / "tasks.json"
+    temp_storage.write_text(
+        '[{"id": 1, "text": "Task with attachment", "priority": "medium", "completed": false, "created_at": "2025-01-01T00:00:00", "completed_at": null, "tags": [], "attachments": ["file.txt"], "links": ["https://example.com"]}]'
+    )
+
+    from tix.storage.json_storage import TaskStorage
+    test_storage = TaskStorage(temp_storage)
+
+    with patch('tix.cli.storage', test_storage):
+        result = runner.invoke(cli, ['ls'])
+        assert result.exit_code == 0
+        assert '📎' in result.output
+
+
+def test_open_command_opens_attachments_and_links(runner, tmp_path):
+    """Test opening attachments and links without actually launching them"""
+    temp_file = tmp_path / "open.txt"
+    temp_file.write_text("Open me")
+
+    temp_storage = tmp_path / "tasks.json"
+    temp_storage.write_text(
+        f'[{{"id": 1, "text": "Task to open", "priority": "medium", "completed": false, '
+        f'"created_at": "2025-01-01T00:00:00", "completed_at": null, "tags": [], '
+        f'"attachments": ["{temp_file}"], "links": ["https://example.com"]}}]'
+    )
+
+    from tix.storage.json_storage import TaskStorage
+    test_storage = TaskStorage(temp_storage)
+
+    with patch('tix.cli.storage', test_storage), \
+         patch('subprocess.Popen') as mock_popen, \
+         patch('os.startfile', create=True):
+
+        result = runner.invoke(cli, ['open', '1'])
+        assert result.exit_code == 0
+        assert 'Opened file' in result.output
+        assert 'Opened link' in result.output
+
+        # Ensure the link was opened (regardless of platform details)
+        calls = [str(call_args[0][0][1]) for call_args in mock_popen.call_args_list]
+        assert "https://example.com" in calls
