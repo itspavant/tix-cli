@@ -182,10 +182,12 @@ class Tix(App):
                 value = value.strip()
                 if key in ("p", "priority"):
                     v = value.lower()
-                    # map easy/medium/hard to low/medium/high
-                    if v == "easy":
+                    # support short forms: l/m/h
+                    if v in ("l", "low"):
                         v = "low"
-                    elif v == "hard":
+                    elif v in ("m", "med", "medium"):
+                        v = "medium"
+                    elif v in ("h", "hi", "high"):
                         v = "high"
                     if v in ("low", "medium", "high"):
                         filters["priority"] = v
@@ -220,13 +222,12 @@ class Tix(App):
             return False
         if status is False and task.completed:
             return False
-        # tags: require all specified tags to be present
+        # tags: match if ANY of the specified tags is present
         tags = filters.get("tags")
         if tags:
             task_tags = set(task.tags or [])
-            for tag in tags:
-                if tag not in task_tags:
-                    return False
+            if not any(tag in task_tags for tag in tags):
+                return False
         # text explicit
         text_filter = filters.get("text")
         if text_filter and text_filter.lower() not in (task.text or "").lower():
