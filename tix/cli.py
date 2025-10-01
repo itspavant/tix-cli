@@ -6,6 +6,7 @@ from tix.storage.json_storage import TaskStorage
 from datetime import datetime
 import os
 import sys
+from importlib import import_module
 
 # Initialize console and storage
 console = Console()
@@ -544,6 +545,18 @@ def report(format, output):
     else:
         console.print(report_text)
 
+
+@cli.command()
+@click.option('--all', '-a', 'show_all', is_flag=True, help='Show completed tasks too')
+def interactive(show_all):
+    """launch interactive terminal ui"""
+    try:
+        from tix.tui.app import TixTuiApp
+    except Exception as e:
+        console.print(f"[red]failed to load tui: {e}[/red]")
+        sys.exit(1)
+    app = TixTuiApp(show_all=show_all)
+    app.run()
 
 if __name__ == '__main__':
     cli()
