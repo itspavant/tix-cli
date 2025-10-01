@@ -4,10 +4,13 @@ from rich.table import Table
 from pathlib import Path
 from tix.storage.json_storage import TaskStorage
 from datetime import datetime
+import subprocess
+import platform
 import os
 import sys
 from .utils import get_date
 from datetime import datetime
+from importlib import import_module
 
 # Initialize console and storage
 console = Console()
@@ -31,17 +34,15 @@ def cli(ctx):
 
 
 @cli.command()
-@click.argument("task")
-@click.option(
-    "--priority",
-    "-p",
-    default="medium",
-    type=click.Choice(["low", "medium", "high"]),
-    help="Set task priority",
-)
-@click.option("--tag", "-t", multiple=True, help="Add tags to task")
+@click.argument('task')
+@click.option('--priority', '-p', default='medium',
+              type=click.Choice(['low', 'medium', 'high']),
+              help='Set task priority')
+@click.option('--tag', '-t', multiple=True, help='Add tags to task')
+@click.option('--attach', '-f', multiple=True, help='Attach file(s)')
+@click.option('--link', '-l', multiple=True, help='Attach URL(s)')
 @click.option("--due", "-d", help="Due date of task")
-def add(task, priority, tag, due):
+def add(task, priority, tag, attach, link,due):
     """Add a new task"""
     if not task or not task.strip():
         console.print("[red]✗[/red] Task text cannot be empty")
@@ -50,11 +51,36 @@ def add(task, priority, tag, due):
     if due and not date:
         console.print("[red]Error processing date")
         sys.exit(1)
-    new_task = storage.add_task(task, priority, list(tag), date)
-    color = {"high": "red", "medium": "yellow", "low": "green"}[priority]
+
+    new_task = storage.add_task(task, priority, list(tag),date)
+    # Handle attachments
+    if attach:
+        attachment_dir = Path.home() / ".tix" / "attachments" / str(new_task.id)
+        attachment_dir.mkdir(parents=True, exist_ok=True)
+        for file_path in attach:
+            try:
+                src = Path(file_path).expanduser().resolve()  
+                if not src.exists():
+                    console.print(f"[red]✗[/red] File not found: {file_path}")
+                    continue
+                dest = attachment_dir / src.name
+                dest.write_bytes(src.read_bytes())
+                new_task.attachments.append(str(dest))
+            except Exception as e:
+                console.print(f"[red]✗[/red] Failed to attach {file_path}: {e}")
+
+    # Handle links
+    if link:
+        new_task.links.extend(link)
+
+    storage.update_task(new_task)
+
+    color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
     if tag:
         console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
+    if attach or link:
+        console.print(f"[dim]  Attachments/Links added[/dim]")
 
 
 @cli.command()
@@ -74,6 +100,7 @@ def ls(all):
     table.add_column("Task")
     table.add_column("Tags", style="dim")
     table.add_column("Due Date")
+    count = dict()
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✔" if task.completed else "○"
@@ -87,17 +114,25 @@ def ls(all):
             else:
                 due_date_str = task.due
 
+        # Show paperclip if task has attachments or links
+        attach_icon = " 📎" if task.attachments or task.links else ""
+
         task_style = "dim strike" if task.completed else ""
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
-            f"[{task_style}]{task.text}[/{task_style}]" if task.completed else task.text,
+            f"[{task_style}]{task.text}[/{task_style}]{attach_icon}" if task.completed else f"{task.text}{attach_icon}",
             tags_str,
-            due_date_str,
+            due_date_str
         )
+        count[task.completed] = count.get(task.completed, 0) + 1
 
     console.print(table)
+    console.print("\n")
+    console.print(f"[cyan]Total tasks:{sum(count.values())}")
+    console.print(f"[red]Active tasks:{count.get(False,0)}")
+    console.print(f"[green]Completed tasks:{count.get(True,0)}")
 
     # Show summary
     if all:
@@ -234,13 +269,15 @@ def done_all(task_ids):
 
 
 @cli.command()
-@click.argument("task_id", type=int)
-@click.option("--text", "-t", help="New task text")
-@click.option("--priority", "-p", type=click.Choice(["low", "medium", "high"]), help="New priority")
-@click.option("--add-tag", multiple=True, help="Add tags")
-@click.option("--remove-tag", multiple=True, help="Remove tags")
+@click.argument('task_id', type=int)
+@click.option('--text', '-t', help='New task text')
+@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='New priority')
+@click.option('--add-tag', multiple=True, help='Add tags')
+@click.option('--remove-tag', multiple=True, help='Remove tags')
+@click.option('--attach', '-f', multiple=True, help='Attach file(s)')
+@click.option('--link', '-l', multiple=True, help='Attach URL(s)')
 @click.option("--due", "-d", help="Due date of task")
-def edit(task_id, text, priority, add_tag, remove_tag, due):
+def edit(task_id, text, priority, add_tag, remove_tag, attach, link,due):
     """Edit a task"""
     task = storage.get_task(task_id)
     if not task:
@@ -277,6 +314,21 @@ def edit(task_id, text, priority, add_tag, remove_tag, due):
             changes.append(f"due date: {old_date} → {new_date}")
         else:
             console.print("[red]Error updating due date. Try again with proper format")
+    # Handle attachments
+    if attach:
+        attachment_dir = Path.home() / ".tix/attachments" / str(task.id)
+        attachment_dir.mkdir(parents=True, exist_ok=True)
+        for file_path in attach:
+            src = Path(file_path)
+            dest = attachment_dir / src.name
+            dest.write_bytes(src.read_bytes())
+            task.attachments.append(str(dest))
+        changes.append(f"attachments added: {[Path(f).name for f in attach]}")
+
+    # Handle links
+    if link:
+        task.links.extend(link)
+        changes.append(f"links added: {list(link)}")
 
     if changes:
         storage.update_task(task)
@@ -585,5 +637,70 @@ def report(format, output):
         console.print(report_text)
 
 
-if __name__ == "__main__":
+
+@cli.command()
+@click.argument('task_id', type=int)
+def open(task_id):
+    """Open all attachments and links for a task"""
+    task = storage.get_task(task_id)
+    if not task:
+        console.print(f"[red]✗[/red] Task #{task_id} not found")
+        return
+
+    if not task.attachments and not task.links:
+        console.print(f"[yellow]![/yellow] Task {task_id} has no attachments or links")
+        return
+    
+    # Helper to open files cross-platform
+    def safe_open(path_or_url, is_link=False):
+        """Cross-platform safe opener for files and links (non-blocking)."""
+        system = platform.system()
+
+        try:
+            if system == "Linux":
+                if "microsoft" in platform.release().lower():
+                    subprocess.Popen(["explorer.exe", str(path_or_url)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    subprocess.Popen(["xdg-open", str(path_or_url)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            elif system == "Darwin":  # macOS
+                subprocess.Popen(["open", str(path_or_url)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            elif system == "Windows":
+                subprocess.Popen(["explorer.exe", str(path_or_url)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            console.print(f"[green]✔[/green] Opened {'link' if is_link else 'file'}: {path_or_url}")
+
+        except Exception as e:
+            console.print(f"[yellow]![/yellow] Could not open {'link' if is_link else 'file'}: {path_or_url} ({e})")
+
+    # Open attachments
+    for file_path in task.attachments:
+        path = Path(file_path)
+        if not path.exists():
+            console.print(f"[red]✗[/red] File not found: {file_path}")
+            continue
+        safe_open(path)   
+
+    # Open links
+    for url in task.links:
+        safe_open(url, is_link=True)  
+
+@cli.command()
+@click.option('--all', '-a', 'show_all', is_flag=True, help='Show completed tasks too')
+def interactive(show_all):
+    """launch interactive terminal ui"""
+    try:
+        from tix.tui.app import Tix
+    except Exception as e:
+        console.print(f"[red]failed to load tui: {e}[/red]")
+        sys.exit(1)
+    app = Tix(show_all=show_all)
+    app.run()
+
+if __name__ == '__main__':
     cli()
