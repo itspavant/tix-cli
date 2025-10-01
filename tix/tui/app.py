@@ -163,11 +163,78 @@ class Tix(App):
         self.query_text = message.value
         table = self.query_one(DataTable)
         table.clear()
+        filters, free_text = self._parse_search(self.query_text)
         for t in self._all_tasks:
-            if self.query_text.lower() in t.text.lower():
+            if self._task_matches(t, filters, free_text):
                 status = "✔" if t.completed else "○"
                 tags = ", ".join(t.tags) if t.tags else ""
                 table.add_row(str(t.id), status, t.priority, t.text, tags, key=t.id)
+
+    def _parse_search(self, query: str):
+        # supports key:value tokens for columns (except id), plus free-text
+        # keys: p/priority, tags, text/task, status/s
+        filters = {"priority": None, "tags": None, "text": None, "status": None}
+        free_parts = []
+        for raw in query.split():
+            if ":" in raw:
+                key, value = raw.split(":", 1)
+                key = key.strip().lower()
+                value = value.strip()
+                if key in ("p", "priority"):
+                    v = value.lower()
+                    # map easy/medium/hard to low/medium/high
+                    if v == "easy":
+                        v = "low"
+                    elif v == "hard":
+                        v = "high"
+                    if v in ("low", "medium", "high"):
+                        filters["priority"] = v
+                elif key in ("t", "tags"):
+                    # accept array form like [a,b]
+                    vals = value
+                    if vals.startswith("[") and vals.endswith("]"):
+                        vals = vals[1:-1]
+                    tag_list = [x.strip() for x in vals.split(",") if x.strip()]
+                    filters["tags"] = tag_list
+                elif key in ("text", "task"):
+                    filters["text"] = value
+                elif key in ("status", "s", "done"):
+                    v = value.lower()
+                    if v in ("done", "completed", "true", "yes"):
+                        filters["status"] = True
+                    elif v in ("active", "open", "false", "no"):
+                        filters["status"] = False
+            else:
+                free_parts.append(raw)
+        free_text = " ".join(free_parts).strip()
+        return filters, free_text
+
+    def _task_matches(self, task: Task, filters, free_text: str) -> bool:
+        # priority
+        p = filters.get("priority")
+        if p and task.priority != p:
+            return False
+        # status
+        status = filters.get("status")
+        if status is True and not task.completed:
+            return False
+        if status is False and task.completed:
+            return False
+        # tags: require all specified tags to be present
+        tags = filters.get("tags")
+        if tags:
+            task_tags = set(task.tags or [])
+            for tag in tags:
+                if tag not in task_tags:
+                    return False
+        # text explicit
+        text_filter = filters.get("text")
+        if text_filter and text_filter.lower() not in (task.text or "").lower():
+            return False
+        # free text fallback matches task text too
+        if free_text and free_text.lower() not in (task.text or "").lower():
+            return False
+        return True
 
     def on_key(self, event: events.Key) -> None:
         # esc closes search and resets list
