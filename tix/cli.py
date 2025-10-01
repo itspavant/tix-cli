@@ -36,6 +36,10 @@ def cli(ctx):
 @click.option('--tag', '-t', multiple=True, help='Add tags to task')
 def add(task, priority, tag):
     """Add a new task"""
+    if not task or not task.strip():
+        console.print("[red]✗[/red] Task text cannot be empty")
+        sys.exit(1)
+
     new_task = storage.add_task(task, priority, list(tag))
     color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
