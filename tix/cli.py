@@ -8,6 +8,7 @@ import subprocess
 import platform
 import os
 import sys
+from importlib import import_module
 
 
 # Initialize console and storage
@@ -652,6 +653,17 @@ def open(task_id):
     for url in task.links:
         safe_open(url, is_link=True)  
 
+@cli.command()
+@click.option('--all', '-a', 'show_all', is_flag=True, help='Show completed tasks too')
+def interactive(show_all):
+    """launch interactive terminal ui"""
+    try:
+        from tix.tui.app import Tix
+    except Exception as e:
+        console.print(f"[red]failed to load tui: {e}[/red]")
+        sys.exit(1)
+    app = Tix(show_all=show_all)
+    app.run()
 
 if __name__ == '__main__':
     cli()
