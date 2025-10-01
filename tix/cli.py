@@ -29,22 +29,26 @@ def cli(ctx):
 
 
 @cli.command()
-@click.argument('task')
-@click.option('--priority', '-p', default='medium',
-              type=click.Choice(['low', 'medium', 'high']),
-              help='Set task priority')
-@click.option('--tag', '-t', multiple=True, help='Add tags to task')
+@click.argument("task")
+@click.option(
+    "--priority",
+    "-p",
+    default="medium",
+    type=click.Choice(["low", "medium", "high"]),
+    help="Set task priority",
+)
+@click.option("--tag", "-t", multiple=True, help="Add tags to task")
 def add(task, priority, tag):
     """Add a new task"""
     new_task = storage.add_task(task, priority, list(tag))
-    color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
+    color = {"high": "red", "medium": "yellow", "low": "green"}[priority]
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
     if tag:
         console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
 
 
 @cli.command()
-@click.option('--all', '-a', is_flag=True, help='Show completed tasks too')
+@click.option("--all", "-a", is_flag=True, help="Show completed tasks too")
 def ls(all):
     """List all tasks"""
     tasks = storage.load_tasks() if all else storage.get_active_tasks()
@@ -59,10 +63,11 @@ def ls(all):
     table.add_column("Priority", width=8)
     table.add_column("Task")
     table.add_column("Tags", style="dim")
+    count = dict()
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✔" if task.completed else "○"
-        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
 
         task_style = "dim strike" if task.completed else ""
@@ -71,20 +76,27 @@ def ls(all):
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
             f"[{task_style}]{task.text}[/{task_style}]" if task.completed else task.text,
-            tags_str
+            tags_str,
         )
+        count[task.completed] = count.get(task.completed, 0) + 1
 
     console.print(table)
+    console.print("\n")
+    console.print(f"[cyan]Total tasks:{sum(count.values())}")
+    console.print(f"[red]Active tasks:{count.get(False,0)}")
+    console.print(f"[green]Completed tasks:{count.get(True,0)}")
 
     # Show summary
     if all:
         active = len([t for t in tasks if not t.completed])
         completed = len([t for t in tasks if t.completed])
-        console.print(f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]")
+        console.print(
+            f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]"
+        )
 
 
 @cli.command()
-@click.argument('task_id', type=int)
+@click.argument("task_id", type=int)
 def done(task_id):
     """Mark a task as done"""
     task = storage.get_task(task_id)
@@ -102,7 +114,7 @@ def done(task_id):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
+@click.argument("task_id", type=int)
 @click.option("--confirm", "-y", is_flag=True, help="Skip confirmation")
 def rm(task_id, confirm):
     """Remove a task"""
@@ -121,8 +133,8 @@ def rm(task_id, confirm):
 
 
 @cli.command()
-@click.option('--completed/--active', default=True, help='Clear completed or active tasks')
-@click.option('--force', '-f', is_flag=True, help='Skip confirmation')
+@click.option("--completed/--active", default=True, help="Clear completed or active tasks")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 def clear(completed, force):
     """Clear multiple tasks at once"""
     tasks = storage.load_tasks()
@@ -158,7 +170,7 @@ def clear(completed, force):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
+@click.argument("task_id", type=int)
 def undo(task_id):
     """Mark a completed task as active again"""
     task = storage.get_task(task_id)
@@ -176,8 +188,8 @@ def undo(task_id):
     console.print(f"[green]✔[/green] Reactivated: {task.text}")
 
 
-@cli.command(name='done-all')
-@click.argument('task_ids', nargs=-1, type=int, required=True)
+@cli.command(name="done-all")
+@click.argument("task_ids", nargs=-1, type=int, required=True)
 def done_all(task_ids):
     """Mark multiple tasks as done"""
     completed = []
@@ -209,11 +221,11 @@ def done_all(task_ids):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
-@click.option('--text', '-t', help='New task text')
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='New priority')
-@click.option('--add-tag', multiple=True, help='Add tags')
-@click.option('--remove-tag', multiple=True, help='Remove tags')
+@click.argument("task_id", type=int)
+@click.option("--text", "-t", help="New task text")
+@click.option("--priority", "-p", type=click.Choice(["low", "medium", "high"]), help="New priority")
+@click.option("--add-tag", multiple=True, help="Add tags")
+@click.option("--remove-tag", multiple=True, help="Remove tags")
 def edit(task_id, text, priority, add_tag, remove_tag):
     """Edit a task"""
     task = storage.get_task(task_id)
@@ -253,8 +265,8 @@ def edit(task_id, text, priority, add_tag, remove_tag):
 
 
 @cli.command()
-@click.argument('task_id', type=int)
-@click.argument('priority', type=click.Choice(['low', 'medium', 'high']))
+@click.argument("task_id", type=int)
+@click.argument("priority", type=click.Choice(["low", "medium", "high"]))
 def priority(task_id, priority):
     """Quick priority change"""
     task = storage.get_task(task_id)
@@ -266,13 +278,15 @@ def priority(task_id, priority):
     task.priority = priority
     storage.update_task(task)
 
-    color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
-    console.print(f"[green]✔[/green] Changed priority: {old_priority} → [{color}]{priority}[/{color}]")
+    color = {"high": "red", "medium": "yellow", "low": "green"}[priority]
+    console.print(
+        f"[green]✔[/green] Changed priority: {old_priority} → [{color}]{priority}[/{color}]"
+    )
 
 
 @cli.command()
-@click.argument('from_id', type=int)
-@click.argument('to_id', type=int)
+@click.argument("from_id", type=int)
+@click.argument("to_id", type=int)
 def move(from_id, to_id):
     """Move/renumber a task to a different ID"""
     if from_id == to_id:
@@ -305,10 +319,12 @@ def move(from_id, to_id):
 
 
 @cli.command()
-@click.argument('query')
-@click.option('--tag', '-t', help='Filter by tag')
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='Filter by priority')
-@click.option('--completed', '-c', is_flag=True, help='Search in completed tasks')
+@click.argument("query")
+@click.option("--tag", "-t", help="Filter by tag")
+@click.option(
+    "--priority", "-p", type=click.Choice(["low", "medium", "high"]), help="Filter by priority"
+)
+@click.option("--completed", "-c", is_flag=True, help="Search in completed tasks")
 def search(query, tag, priority, completed):
     """Search tasks by text"""
     tasks = storage.load_tasks()
@@ -344,29 +360,33 @@ def search(query, tag, priority, completed):
 
     for task in results:
         status = "✔" if task.completed else "○"
-        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
 
         # Highlight matching text
-        highlighted_text = task.text.replace(
-            query, f"[bold yellow]{query}[/bold yellow]"
-        ) if query.lower() in task.text.lower() else task.text
+        highlighted_text = (
+            task.text.replace(query, f"[bold yellow]{query}[/bold yellow]")
+            if query.lower() in task.text.lower()
+            else task.text
+        )
 
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
             highlighted_text,
-            tags_str
+            tags_str,
         )
 
     console.print(table)
 
 
 @cli.command()
-@click.option('--priority', '-p', type=click.Choice(['low', 'medium', 'high']), help='Filter by priority')
-@click.option('--tag', '-t', help='Filter by tag')
-@click.option('--completed/--active', '-c/-a', default=None, help='Filter by completion status')
+@click.option(
+    "--priority", "-p", type=click.Choice(["low", "medium", "high"]), help="Filter by priority"
+)
+@click.option("--tag", "-t", help="Filter by tag")
+@click.option("--completed/--active", "-c/-a", default=None, help="Filter by completion status")
 def filter(priority, tag, completed):
     """Filter tasks by criteria"""
     tasks = storage.load_tasks()
@@ -406,21 +426,21 @@ def filter(priority, tag, completed):
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✔" if task.completed else "○"
-        priority_color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[task.priority]
+        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
         tags_str = ", ".join(task.tags) if task.tags else ""
         table.add_row(
             str(task.id),
             status,
             f"[{priority_color}]{task.priority}[/{priority_color}]",
             task.text,
-            tags_str
+            tags_str,
         )
 
     console.print(table)
 
 
 @cli.command()
-@click.option('--no-tags', is_flag=True, help='Show tasks without tags')
+@click.option("--no-tags", is_flag=True, help="Show tasks without tags")
 def tags(no_tags):
     """List all unique tags or tasks without tags"""
     tasks = storage.load_tasks()
@@ -453,10 +473,11 @@ def tags(no_tags):
 
 
 @cli.command()
-@click.option('--detailed', '-d', is_flag=True, help='Show detailed breakdown')
+@click.option("--detailed", "-d", is_flag=True, help="Show detailed breakdown")
 def stats(detailed):
     """Show task statistics"""
     from tix.commands.stats import show_stats
+
     show_stats(storage)
 
     if detailed:
@@ -467,6 +488,7 @@ def stats(detailed):
 
             # Tasks by day
             from collections import defaultdict
+
             by_day = defaultdict(list)
 
             for task in tasks:
@@ -482,8 +504,10 @@ def stats(detailed):
 
 
 @cli.command()
-@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
-@click.option('--output', '-o', type=click.Path(), help='Output to file')
+@click.option(
+    "--format", "-f", type=click.Choice(["text", "json"]), default="text", help="Output format"
+)
+@click.option("--output", "-o", type=click.Path(), help="Output to file")
 def report(format, output):
     """Generate a task report"""
     tasks = storage.load_tasks()
@@ -495,16 +519,13 @@ def report(format, output):
     active = [t for t in tasks if not t.completed]
     completed = [t for t in tasks if t.completed]
 
-    if format == 'json':
+    if format == "json":
         import json
+
         report_data = {
-            'generated': datetime.now().isoformat(),
-            'summary': {
-                'total': len(tasks),
-                'active': len(active),
-                'completed': len(completed)
-            },
-            'tasks': [t.to_dict() for t in tasks]
+            "generated": datetime.now().isoformat(),
+            "summary": {"total": len(tasks), "active": len(active), "completed": len(completed)},
+            "tasks": [t.to_dict() for t in tasks],
         }
         report_text = json.dumps(report_data, indent=2)
     else:
@@ -519,18 +540,14 @@ def report(format, output):
             f"Completed: {len(completed)}",
             "",
             "ACTIVE TASKS:",
-            "-" * 20
+            "-" * 20,
         ]
 
         for task in active:
             tags = f" [{', '.join(task.tags)}]" if task.tags else ""
             report_lines.append(f"#{task.id} [{task.priority}] {task.text}{tags}")
 
-        report_lines.extend([
-            "",
-            "COMPLETED TASKS:",
-            "-" * 20
-        ])
+        report_lines.extend(["", "COMPLETED TASKS:", "-" * 20])
 
         for task in completed:
             tags = f" [{', '.join(task.tags)}]" if task.tags else ""
@@ -545,5 +562,5 @@ def report(format, output):
         console.print(report_text)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
