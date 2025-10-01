@@ -85,6 +85,36 @@ def test_add_and_list(runner):
             assert 'My task' in result.output or 'high' in result.output
 
 
+def test_add_empty_task_text(runner):
+    """Empty task text should be rejected"""
+    with runner.isolated_filesystem():
+        temp_storage = Path.cwd() / "tasks.json"
+        temp_storage.write_text('[]')
+
+        from tix.storage.json_storage import TaskStorage
+        test_storage = TaskStorage(temp_storage)
+
+        with patch('tix.cli.storage', test_storage):
+            result = runner.invoke(cli, ['add', ''])
+            assert result.exit_code != 0
+            assert 'cannot be empty' in result.output
+
+
+def test_add_whitespace_only_task_text(runner):
+    """Whitespace-only task text should be rejected"""
+    with runner.isolated_filesystem():
+        temp_storage = Path.cwd() / "tasks.json"
+        temp_storage.write_text('[]')
+
+        from tix.storage.json_storage import TaskStorage
+        test_storage = TaskStorage(temp_storage)
+
+        with patch('tix.cli.storage', test_storage):
+            result = runner.invoke(cli, ['add', '   \t   '])
+            assert result.exit_code != 0
+            assert 'cannot be empty' in result.output
+
+
 def test_done_command(runner):
     """Test marking a task as done"""
     with runner.isolated_filesystem():
