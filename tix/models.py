@@ -12,6 +12,7 @@ class Task:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     completed_at: Optional[str] = None
     tags: List[str] = field(default_factory=list)
+    due: str = None
 
     def to_dict(self) -> dict:
         """Convert task to dictionary for JSON serialization"""
@@ -22,7 +23,8 @@ class Task:
             'completed': self.completed,
             'created_at': self.created_at,
             'completed_at': self.completed_at,
-            'tags': self.tags
+            'tags': self.tags,
+            'due':self.due
         }
 
     @classmethod
