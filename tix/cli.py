@@ -34,7 +34,7 @@ def cli(ctx):
 
 @cli.command()
 @click.argument('task')
-@click.option('--priority', '-p', default='medium',
+@click.option('--priority', '-p', default=None,
               type=click.Choice(['low', 'medium', 'high']),
               help='Set task priority')
 @click.option('--tag', '-t', multiple=True, help='Add tags to task')
@@ -42,11 +42,21 @@ def cli(ctx):
 @click.option('--link', '-l', multiple=True, help='Attach URL(s)')
 def add(task, priority, tag, attach, link):
     """Add a new task"""
+    from tix.config import CONFIG
+    
     if not task or not task.strip():
         console.print("[red]✗[/red] Task text cannot be empty")
         sys.exit(1)
 
-    new_task = storage.add_task(task, priority, list(tag))
+    # Use config defaults if not specified
+    if priority is None:
+        priority = CONFIG.get('defaults', {}).get('priority', 'medium')
+    
+    # Merge config default tags with provided tags
+    default_tags = CONFIG.get('defaults', {}).get('tags', [])
+    all_tags = list(set(list(tag) + default_tags))
+    
+    new_task = storage.add_task(task, priority, all_tags)
     # Handle attachments
     if attach:
         attachment_dir = Path.home() / ".tix" / "attachments" / str(new_task.id)
@@ -69,69 +79,115 @@ def add(task, priority, tag, attach, link):
 
     storage.update_task(new_task)
 
-    color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
+    # Use configured colors
+    priority_colors = CONFIG.get('colors', {}).get('priority', {})
+    color = priority_colors.get(priority, 'yellow')
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
-    if tag:
-        console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
-    if attach or link:
-        console.print(f"[dim]  Attachments/Links added[/dim]")
+    
+    # Show notification if enabled
+    if CONFIG.get('notifications', {}).get('on_creation', True):
+        if all_tags:
+            tag_color = CONFIG.get('colors', {}).get('tags', 'cyan')
+            console.print(f"[dim]  Tags: [{tag_color}]{', '.join(all_tags)}[/{tag_color}][/dim]")
+        if attach or link:
+            console.print(f"[dim]  Attachments/Links added[/dim]")
 
 
 @cli.command()
 @click.option("--all", "-a", is_flag=True, help="Show completed tasks too")
 def ls(all):
     """List all tasks"""
+    from tix.config import CONFIG
+    
     tasks = storage.load_tasks() if all else storage.get_active_tasks()
 
     if not tasks:
         console.print("[dim]No tasks found. Use 'tix add' to create one![/dim]")
         return
 
+    # Get display settings from config
+    display_config = CONFIG.get('display', {})
+    show_ids = display_config.get('show_ids', True)
+    show_dates = display_config.get('show_dates', False)
+    compact_mode = display_config.get('compact_mode', False)
+    max_text_length = display_config.get('max_text_length', 0)
+    
+    # Get color settings from config
+    priority_colors = CONFIG.get('colors', {}).get('priority', {})
+    status_colors = CONFIG.get('colors', {}).get('status', {})
+    tag_color = CONFIG.get('colors', {}).get('tags', 'cyan')
+
     table = Table(title="Tasks" if not all else "All Tasks")
-    table.add_column("ID", style="cyan", width=4)
+    if show_ids:
+        table.add_column("ID", style="cyan", width=4)
     table.add_column("✔", width=3)
     table.add_column("Priority", width=8)
     table.add_column("Task")
-    table.add_column("Tags", style="dim")
+    if not compact_mode:
+        table.add_column("Tags", style=tag_color)
+    if show_dates:
+        table.add_column("Created", style="dim")
+    
     count = dict()
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
         status = "✔" if task.completed else "○"
-        priority_color = {"high": "red", "medium": "yellow", "low": "green"}[task.priority]
+        priority_color = priority_colors.get(task.priority, 'yellow')
         tags_str = ", ".join(task.tags) if task.tags else ""
 
         # Show paperclip if task has attachments or links
         attach_icon = " 📎" if task.attachments or task.links else ""
 
+        # Truncate text if max_text_length is set
+        task_text = task.text
+        if max_text_length > 0 and len(task_text) > max_text_length:
+            task_text = task_text[:max_text_length] + "..."
+
         task_style = "dim strike" if task.completed else ""
-        table.add_row(
-            str(task.id),
-            status,
-            f"[{priority_color}]{task.priority}[/{priority_color}]",
-            f"[{task_style}]{task.text}[/{task_style}]{attach_icon}" if task.completed else f"{task.text}{attach_icon}",
-            tags_str
+        
+        row_data = []
+        if show_ids:
+            row_data.append(str(task.id))
+        row_data.append(status)
+        row_data.append(f"[{priority_color}]{task.priority}[/{priority_color}]")
+        row_data.append(
+            f"[{task_style}]{task_text}[/{task_style}]{attach_icon}" if task.completed 
+            else f"{task_text}{attach_icon}"
         )
+        if not compact_mode:
+            row_data.append(tags_str)
+        if show_dates:
+            created_date = datetime.fromisoformat(task.created_at).strftime('%Y-%m-%d')
+            row_data.append(created_date)
+        
+        table.add_row(*row_data)
         count[task.completed] = count.get(task.completed, 0) + 1
 
     console.print(table)
-    console.print("\n")
-    console.print(f"[cyan]Total tasks:{sum(count.values())}")
-    console.print(f"[red]Active tasks:{count.get(False,0)}")
-    console.print(f"[green]Completed tasks:{count.get(True,0)}")
+    
+    if not compact_mode:
+        console.print("\n")
+        active_color = status_colors.get('active', 'blue')
+        completed_color = status_colors.get('completed', 'green')
+        console.print(f"[cyan]Total tasks:{sum(count.values())}")
+        console.print(f"[{active_color}]Active tasks:{count.get(False,0)}[/{active_color}]")
+        console.print(f"[{completed_color}]Completed tasks:{count.get(True,0)}[/{completed_color}]")
 
-    # Show summary
-    if all:
-        active = len([t for t in tasks if not t.completed])
-        completed = len([t for t in tasks if t.completed])
-        console.print(
-            f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]"
-        )
+        # Show summary
+        if all:
+            active = len([t for t in tasks if not t.completed])
+            completed = len([t for t in tasks if t.completed])
+            console.print(
+                f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]"
+            )
 
 
 @cli.command()
 @click.argument("task_id", type=int)
 def done(task_id):
     """Mark a task as done"""
+    from tix.config import CONFIG
+    
     task = storage.get_task(task_id)
     if not task:
         console.print(f"[red]✗[/red] Task #{task_id} not found")
@@ -143,7 +199,12 @@ def done(task_id):
 
     task.mark_done()
     storage.update_task(task)
-    console.print(f"[green]✔[/green] Completed: {task.text}")
+    
+    # Show notification if enabled
+    if CONFIG.get('notifications', {}).get('on_completion', True):
+        console.print(f"[green]✔[/green] Completed: {task.text}")
+    else:
+        console.print(f"[green]✔[/green] Task #{task_id} completed")
 
 
 @cli.command()
@@ -308,9 +369,15 @@ def edit(task_id, text, priority, add_tag, remove_tag, attach, link):
 
     if changes:
         storage.update_task(task)
-        console.print(f"[green]✔[/green] Updated task #{task_id}:")
-        for change in changes:
-            console.print(f"  • {change}")
+        
+        # Show notification if enabled
+        from tix.config import CONFIG
+        if CONFIG.get('notifications', {}).get('on_update', True):
+            console.print(f"[green]✔[/green] Updated task #{task_id}:")
+            for change in changes:
+                console.print(f"  • {change}")
+        else:
+            console.print(f"[green]✔[/green] Task #{task_id} updated")
     else:
         console.print("[yellow]No changes made[/yellow]")
 
@@ -676,6 +743,117 @@ def interactive(show_all):
         sys.exit(1)
     app = Tix(show_all=show_all)
     app.run()
+
+
+@cli.group()
+def config():
+    """Manage TIX configuration settings"""
+    pass
+
+
+@config.command('init')
+def config_init():
+    """Initialize configuration file with defaults"""
+    from tix.config import create_default_config_if_not_exists, get_config_path
+    
+    if create_default_config_if_not_exists():
+        console.print(f"[green]✔[/green] Created default config at {get_config_path()}")
+    else:
+        console.print(f"[yellow]![/yellow] Config file already exists at {get_config_path()}")
+
+
+@config.command('show')
+@click.option('--key', '-k', help='Show specific config key (e.g., defaults.priority)')
+def config_show(key):
+    """Show current configuration"""
+    from tix.config import load_config, get_config_value, get_config_path
+    import yaml
+    
+    if key:
+        value = get_config_value(key)
+        if value is None:
+            console.print(f"[red]✗[/red] Config key '{key}' not found")
+        else:
+            console.print(f"[cyan]{key}:[/cyan] {value}")
+    else:
+        config = load_config()
+        console.print(f"[bold]Configuration from {get_config_path()}:[/bold]\n")
+        console.print(yaml.dump(config, default_flow_style=False, sort_keys=False))
+
+
+@config.command('set')
+@click.argument('key')
+@click.argument('value')
+def config_set(key, value):
+    """Set a configuration value (e.g., tix config set defaults.priority high)"""
+    from tix.config import set_config_value
+    
+    # Try to parse value as YAML to support different types
+    import yaml
+    try:
+        parsed_value = yaml.safe_load(value)
+    except yaml.YAMLError:
+        parsed_value = value
+    
+    if set_config_value(key, parsed_value):
+        console.print(f"[green]✔[/green] Set {key} = {parsed_value}")
+    else:
+        console.print(f"[red]✗[/red] Failed to set configuration")
+
+
+@config.command('get')
+@click.argument('key')
+def config_get(key):
+    """Get a configuration value"""
+    from tix.config import get_config_value
+    
+    value = get_config_value(key)
+    if value is None:
+        console.print(f"[red]✗[/red] Config key '{key}' not found")
+    else:
+        console.print(f"{value}")
+
+
+@config.command('reset')
+@click.option('--confirm', '-y', is_flag=True, help='Skip confirmation')
+def config_reset(confirm):
+    """Reset configuration to defaults"""
+    from tix.config import DEFAULT_CONFIG, save_config, get_config_path
+    
+    if not confirm:
+        if not click.confirm("Are you sure you want to reset configuration to defaults?"):
+            console.print("[yellow]⚠ Cancelled[/yellow]")
+            return
+    
+    if save_config(DEFAULT_CONFIG):
+        console.print(f"[green]✔[/green] Reset configuration to defaults at {get_config_path()}")
+    else:
+        console.print(f"[red]✗[/red] Failed to reset configuration")
+
+
+@config.command('path')
+def config_path():
+    """Show path to configuration file"""
+    from tix.config import get_config_path
+    console.print(get_config_path())
+
+
+@config.command('edit')
+def config_edit():
+    """Open configuration file in default editor"""
+    from tix.config import get_config_path, create_default_config_if_not_exists
+    
+    create_default_config_if_not_exists()
+    config_path = get_config_path()
+    
+    editor = os.environ.get('EDITOR', 'nano')
+    try:
+        subprocess.run([editor, config_path])
+        console.print(f"[green]✔[/green] Configuration edited")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Failed to open editor: {e}")
+        console.print(f"[dim]Try: export EDITOR=vim or export EDITOR=nano[/dim]")
+
 
 if __name__ == '__main__':
     cli()
