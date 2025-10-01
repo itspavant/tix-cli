@@ -555,7 +555,7 @@ def stats(detailed):
 
 
 @cli.command()
-@click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
+@click.option('--format', '-f', type=click.Choice(['text', 'json','markdown']), default='text', help='Output format')
 @click.option('--output', '-o', type=click.Path(), help='Output to file')
 def report(format, output):
     """Generate a task report"""
