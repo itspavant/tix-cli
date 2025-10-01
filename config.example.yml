@@ -1,75 +1,40 @@
-# TIX Configuration File Example
-# Copy this file to ~/.tix/config.yml and customize as needed
-# You can also use: tix config init
-
-# Default values for new tasks
+# Defaults for new tasks
 defaults:
-  # Default priority when creating tasks without -p flag
-  # Options: low, medium, high
-  priority: medium
-  
-  # Default tags to add to every new task
-  # Leave empty [] for no default tags
-  tags: []
-  # Example with default tags:
-  # tags:
-  #   - work
-  #   - todo
+  priority: medium      # low, medium, high
+  tags: []              # e.g. [work, urgent]
 
-# Color customization for terminal output
+# Colors
 colors:
-  # Priority level colors
   priority:
     low: green
     medium: yellow
     high: red
-  
-  # Task status colors
   status:
     active: blue
     completed: green
-  
-  # Tag color
   tags: cyan
 
-# Command aliases for faster typing
-# Usage: tix <alias> instead of tix <command>
+# Aliases
 aliases:
-  l: ls          # tix l → tix ls
-  a: add         # tix a "task" → tix add "task"
-  d: done        # tix d 1 → tix done 1
-  r: rm          # tix r 1 → tix rm 1
-  e: edit        # tix e 1 → tix edit 1
-  p: priority    # tix p 1 high → tix priority 1 high
-  s: search      # tix s "query" → tix search "query"
-  f: filter      # tix f -p high → tix filter -p high
+  l: ls
+  a: add
+  d: done
+  r: rm
+  e: edit
+  p: priority
+  s: search
+  f: filter
 
-# Notification preferences
+# Notifications
 notifications:
-  # Master switch for all notifications
   enabled: true
-  
-  # Show notification when creating a task
   on_creation: true
-  
-  # Show detailed notification when updating a task
   on_update: true
-  
-  # Show notification when completing a task
   on_completion: true
 
-# Display preferences for task lists
+# Display
 display:
-  # Show task IDs in list view
   show_ids: true
-  
-  # Show creation dates in list view
   show_dates: false
-  
-  # Compact mode (hide tags column, reduce spacing)
   compact_mode: false
-  
-  # Maximum text length for task display (0 = no limit)
-  # Useful for keeping lists compact
   max_text_length: 0
-  # Example: max_text_length: 50
