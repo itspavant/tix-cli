@@ -10,8 +10,10 @@ import platform
 import os
 import sys
 from .utils import get_date
-from datetime import datetime
 from importlib import import_module
+
+# Backup helpers (new)
+from tix.storage.backup import create_backup, list_backups, restore_from_backup
 
 console = Console()
 storage = TaskStorage()
@@ -33,6 +35,106 @@ def cli(ctx):
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(ls)
+
+
+# -----------------------
+# Backup CLI group
+# -----------------------
+@cli.group(help="Backup and restore task data")
+def backup():
+    pass
+
+
+@backup.command("create")
+@click.argument("filename", required=False)
+@click.option("--data-file", type=click.Path(), default=None, help="Path to tix data file (for testing/dev)")
+def backup_create(filename, data_file):
+    """Create a timestamped backup of your tasks file."""
+    try:
+        data_path = Path(data_file) if data_file else storage.storage_path
+        bpath = create_backup(data_path, filename)
+        console.print(f"[green]✔ Backup created:[/green] {bpath}")
+    except Exception as e:
+        console.print(f"[red]Backup failed:[/red] {e}")
+        raise click.Abort()
+
+
+@backup.command("list")
+@click.option("--data-file", type=click.Path(), default=None, help="Path to tix data file (for testing/dev)")
+def backup_list(data_file):
+    """List available backups for the active tasks file."""
+    try:
+        data_path = Path(data_file) if data_file else storage.storage_path
+        backups = list_backups(data_path)
+        if not backups:
+            console.print("[dim]No backups found[/dim]")
+            return
+        for b in backups:
+            console.print(str(b))
+    except Exception as e:
+        console.print(f"[red]Failed to list backups:[/red] {e}")
+        raise click.Abort()
+
+
+@backup.command("restore")
+@click.argument("backup_file", required=True)
+@click.option("--data-file", type=click.Path(), default=None, help="Path to tix data file (for testing/dev)")
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation")
+def backup_restore(backup_file, data_file, yes):
+    """Restore tasks from a previous backup. Will ask confirmation by default."""
+    try:
+        data_path = Path(data_file) if data_file else storage.storage_path
+        if not yes:
+            if not click.confirm(f"About to restore backup '{backup_file}'. This will overwrite your current tasks file. Continue?"):
+                console.print("[yellow]Restore cancelled[/yellow]")
+                return
+        restore_from_backup(backup_file, data_path, require_confirm=False)
+        console.print("[green]✔ Restore complete[/green]")
+    except FileNotFoundError as e:
+        console.print(f"[red]Restore failed:[/red] {e}")
+        raise click.Abort()
+    except RuntimeError as e:
+        console.print(f"[yellow]{e}[/yellow]")
+        raise click.Abort()
+    except Exception as e:
+        console.print(f"[red]Restore failed:[/red] {e}")
+        raise click.Abort()
+
+
+# -----------------------
+# Top-level restore
+# -----------------------
+@cli.command("restore")
+@click.argument("backup_file", required=True)
+@click.option("--data-file", type=click.Path(), default=None, help="Path to tix data file (for testing/dev)")
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation")
+def restore(backup_file, data_file, yes):
+    """
+    Restore tasks from a previous backup (top-level command).
+    Usage: tix restore <backup_file>
+    """
+    try:
+        data_path = Path(data_file) if data_file else storage.storage_path
+        if not yes:
+            if not click.confirm(f"About to restore backup '{backup_file}'. This will overwrite your current tasks file. Continue?"):
+                console.print("[yellow]Restore cancelled[/yellow]")
+                return
+        restore_from_backup(backup_file, data_path, require_confirm=False)
+        console.print("[green]✔ Restore complete[/green]")
+    except FileNotFoundError as e:
+        console.print(f"[red]Restore failed:[/red] {e}")
+        raise click.Abort()
+    except RuntimeError as e:
+        console.print(f"[yellow]{e}[/yellow]")
+        raise click.Abort()
+    except Exception as e:
+        console.print(f"[red]Restore failed:[/red] {e}")
+        raise click.Abort()
+
+
+# -----------------------
+# End backup group
+# -----------------------
 
 
 @cli.command()
@@ -62,7 +164,7 @@ def add(task, priority, tag, attach, link, due, is_global):
         attachment_dir.mkdir(parents=True, exist_ok=True)
         for file_path in attach:
             try:
-                src = Path(file_path).expanduser().resolve()  
+                src = Path(file_path).expanduser().resolve()
                 if not src.exists():
                     console.print(f"[red]✗[/red] File not found: {file_path}")
                     continue
@@ -79,14 +181,14 @@ def add(task, priority, tag, attach, link, due, is_global):
     storage.update_task(new_task)
 
     color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
-    
+
     global_indicator = " [dim](global)[/dim]" if is_global else ""
     console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]{global_indicator}")
     if tag:
         console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
     if attach or link:
         console.print(f"[dim]  Attachments/Links added[/dim]")
-    
+
     # Show current context if not default
     active_context = context_storage.get_active_context()
     if active_context != "default":
@@ -194,6 +296,15 @@ def rm(task_id, confirm):
             console.print("[yellow]⚠ Cancelled[/yellow]")
             return
 
+    # Auto-backup before destructive operation
+    try:
+        bpath = create_backup(storage.storage_path)
+        console.print(f"[dim]Backup created before delete:[/dim] {bpath}")
+    except Exception as e:
+        console.print(f"[red]Failed to create backup before delete:[/red] {e}")
+        console.print("[red]Aborting delete.[/red]")
+        return
+
     if storage.delete_task(task_id):
         console.print(f"[red]✗[/red] Removed: {task.text}")
 
@@ -230,6 +341,15 @@ def clear(completed, force):
         if not click.confirm("Continue?"):
             console.print("[dim]Cancelled[/dim]")
             return
+
+    # Auto-backup before clear
+    try:
+        bpath = create_backup(storage.storage_path)
+        console.print(f"[dim]Backup created before clear:[/dim] {bpath}")
+    except Exception as e:
+        console.print(f"[red]Failed to create backup before clear:[/red] {e}")
+        console.print("[red]Aborting clear.[/red]")
+        return
 
     storage.save_tasks(remaining)
     console.print(f"[green]✔[/green] Cleared {count} {task_type} task(s)")
@@ -495,7 +615,7 @@ def filter(priority, tag, completed):
         tasks = [t for t in tasks if t.completed == completed]
 
     if not tasks:
-        console.print("[dim]No matching tasks[/dim]")
+        console.print("[dim]No matching tasks[/dim]") 
         return
 
     # Build filter description
@@ -544,7 +664,7 @@ def tags(no_tags):
         if not untagged:
             console.print("[dim]All tasks have tags[/dim]")
             return
-
+        
         console.print(f"[bold]{len(untagged)} task(s) without tags:[/bold]\n")
         for task in untagged:
             status = "✔" if task.completed else "○"
@@ -650,7 +770,7 @@ def report(format, output):
             tasks_in_priority = active_by_priority[priority]
             if tasks_in_priority:
                 priority_emoji = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}
-                report_lines.append(f"### {priority_emoji[priority]} {priority.capitalize()} Priority")
+                report_lines.append(f"### {priority_emoji[priority]} {priority.capitalize()}")
                 report_lines.append("")
                 
                 for task in tasks_in_priority:
@@ -725,7 +845,7 @@ def open(task_id):
     if not task.attachments and not task.links:
         console.print(f"[yellow]![/yellow] Task {task_id} has no attachments or links")
         return
-    
+
     # Helper to open files cross-platform
     def safe_open(path_or_url, is_link=False):
         """Cross-platform safe opener for files and links (non-blocking)."""
@@ -759,11 +879,12 @@ def open(task_id):
         if not path.exists():
             console.print(f"[red]✗[/red] File not found: {file_path}")
             continue
-        safe_open(path)   
+        safe_open(path)
 
     # Open links
     for url in task.links:
-        safe_open(url, is_link=True)  
+        safe_open(url, is_link=True)
+
 
 @cli.command()
 @click.option('--all', '-a', 'show_all', is_flag=True, help='Show completed tasks too')
