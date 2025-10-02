@@ -107,7 +107,7 @@ class TaskStorage:
         """Add a new task and return it"""
         data = self._read_data()
         new_id = data["next_id"]
-        new_task = Task(id=new_id, text=text, priority=priority, tags=tags or [],due=duek, is_global=is_global)
+        new_task = Task(id=new_id, text=text, priority=priority, tags=tags or [],due=due, is_global=is_global)
         
         # Global tasks can only be added in the default context
         if is_global and self.context != "default":
