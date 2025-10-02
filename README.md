@@ -350,6 +350,40 @@ tix report -f json -o tasks.json
 tix report --output my-tasks.txt
 ```
 
+### 🔒 Backup & Restore
+*All destructive operations (rm, clear) automatically create a backup before execution*
+
+#### Creating Backups
+
+```bash
+# Create a timestamped backup
+tix backup create
+
+# Create a backup with a custom filename
+tix backup create my-backup.json
+```
+
+#### Listing Backups
+
+```bash
+# List all available backups
+tix backup list
+```
+
+#### Restoring From Backup
+
+```bash
+# Restore using top-level command (prompts for confirmation)
+tix restore backup-2025-10-02-120000.json
+
+# Skip confirmation
+tix restore backup-2025-10-02-120000.json -y
+
+# Equivalent grouped command
+tix backup restore backup-2025-10-02-120000.json
+```
+
+
 ## 🎨 Using Tab Completion
 
 Tab completion works automatically after installation:
