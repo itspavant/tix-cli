@@ -3,6 +3,7 @@ from rich.console import Console
 from rich.table import Table
 from pathlib import Path
 from tix.storage.json_storage import TaskStorage
+from tix.storage.context_storage import ContextStorage
 from datetime import datetime
 import subprocess
 import platform
@@ -12,9 +13,9 @@ from .utils import get_date
 from datetime import datetime
 from importlib import import_module
 
-# Initialize console and storage
 console = Console()
 storage = TaskStorage()
+context_storage = ContextStorage()
 
 
 @click.group(invoke_without_command=True)
@@ -27,6 +28,7 @@ def cli(ctx):
       tix add "My task" -p high    # Add a high priority task
       tix ls                        # List all active tasks
       tix done 1                    # Mark task #1 as done
+      tix context list              # List all contexts
       tix --help                    # Show all commands
     """
     if ctx.invoked_subcommand is None:
@@ -42,7 +44,8 @@ def cli(ctx):
 @click.option('--attach', '-f', multiple=True, help='Attach file(s)')
 @click.option('--link', '-l', multiple=True, help='Attach URL(s)')
 @click.option("--due", "-d", help="Due date of task")
-def add(task, priority, tag, attach, link,due):
+@click.option('--global', 'is_global', is_flag=True, help='Make task visible in all contexts')
+def add(task, priority, tag, attach, link, due, is_global):
     """Add a new task"""
     if not task or not task.strip():
         console.print("[red]✗[/red] Task text cannot be empty")
@@ -53,6 +56,7 @@ def add(task, priority, tag, attach, link,due):
         sys.exit(1)
 
     new_task = storage.add_task(task, priority, list(tag),date)
+    new_task = storage.add_task(task, priority, list(tag),due=date, is_global=is_global)
     # Handle attachments
     if attach:
         attachment_dir = Path.home() / ".tix" / "attachments" / str(new_task.id)
@@ -76,11 +80,18 @@ def add(task, priority, tag, attach, link,due):
     storage.update_task(new_task)
 
     color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
-    console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]")
+    
+    global_indicator = " [dim](global)[/dim]" if is_global else ""
+    console.print(f"[green]✔[/green] Added task #{new_task.id}: [{color}]{task}[/{color}]{global_indicator}")
     if tag:
         console.print(f"[dim]  Tags: {', '.join(tag)}[/dim]")
     if attach or link:
         console.print(f"[dim]  Attachments/Links added[/dim]")
+    
+    # Show current context if not default
+    active_context = context_storage.get_active_context()
+    if active_context != "default":
+        console.print(f"[dim]  Context: {active_context}[/dim]")
 
 
 @cli.command()
@@ -93,13 +104,19 @@ def ls(all):
         console.print("[dim]No tasks found. Use 'tix add' to create one![/dim]")
         return
 
-    table = Table(title="Tasks" if not all else "All Tasks")
+    active_context = context_storage.get_active_context()
+    title = "Tasks" if not all else "All Tasks"
+    if active_context != "default":
+        title += f" [dim]({active_context})[/dim]"
+
+    table = Table(title=title)
     table.add_column("ID", style="cyan", width=4)
     table.add_column("✔", width=3)
     table.add_column("Priority", width=8)
     table.add_column("Task")
     table.add_column("Tags", style="dim")
     table.add_column("Due Date")
+    table.add_column("Scope", style="dim", width=6)
     count = dict()
 
     for task in sorted(tasks, key=lambda t: (t.completed, t.id)):
@@ -113,6 +130,7 @@ def ls(all):
                 due_date_str = f"[red]{task.due}"
             else:
                 due_date_str = task.due
+        scope = "global" if task.is_global else "local"
 
         # Show paperclip if task has attachments or links
         attach_icon = " 📎" if task.attachments or task.links else ""
@@ -124,7 +142,8 @@ def ls(all):
             f"[{priority_color}]{task.priority}[/{priority_color}]",
             f"[{task_style}]{task.text}[/{task_style}]{attach_icon}" if task.completed else f"{task.text}{attach_icon}",
             tags_str,
-            due_date_str
+            due_date_str,
+            scope
         )
         count[task.completed] = count.get(task.completed, 0) + 1
 
@@ -138,9 +157,9 @@ def ls(all):
     if all:
         active = len([t for t in tasks if not t.completed])
         completed = len([t for t in tasks if t.completed])
-        console.print(
-            f"\n[dim]Total: {len(tasks)} | Active: {active} | Completed: {completed}[/dim]"
-        )
+        global_count = len([t for t in tasks if t.is_global])
+        local_count = len(tasks) - global_count
+        console.print(f"\n[dim]Total: {len(tasks)} ({local_count} local, {global_count} global) | Active: {active} | Completed: {completed}[/dim]")
 
 
 @cli.command()
@@ -598,17 +617,24 @@ def report(format, output):
         import json
 
         report_data = {
-            "generated": datetime.now().isoformat(),
-            "summary": {"total": len(tasks), "active": len(active), "completed": len(completed)},
-            "tasks": [t.to_dict() for t in tasks],
+            'generated': datetime.now().isoformat(),
+            'context': context_storage.get_active_context(),
+            'summary': {
+                'total': len(tasks),
+                'active': len(active),
+                'completed': len(completed)
+            },
+            'tasks': [t.to_dict() for t in tasks]
         }
         report_text = json.dumps(report_data, indent=2)
     else:
         # Text format
+        active_context = context_storage.get_active_context()
         report_lines = [
             "TIX TASK REPORT",
             "=" * 40,
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"Context: {active_context}",
             "",
             f"Total Tasks: {len(tasks)}",
             f"Active: {len(active)}",
@@ -620,13 +646,15 @@ def report(format, output):
 
         for task in active:
             tags = f" [{', '.join(task.tags)}]" if task.tags else ""
-            report_lines.append(f"#{task.id} [{task.priority}] {task.text}{tags}")
+            global_marker = " (global)" if task.is_global else ""
+            report_lines.append(f"#{task.id} [{task.priority}] {task.text}{tags}{global_marker}")
 
         report_lines.extend(["", "COMPLETED TASKS:", "-" * 20])
 
         for task in completed:
             tags = f" [{', '.join(task.tags)}]" if task.tags else ""
-            report_lines.append(f"#{task.id} ✔ {task.text}{tags}")
+            global_marker = " (global)" if task.is_global else ""
+            report_lines.append(f"#{task.id} ✔ {task.text}{tags}{global_marker}")
 
         report_text = "\n".join(report_lines)
 
@@ -701,6 +729,12 @@ def interactive(show_all):
         sys.exit(1)
     app = Tix(show_all=show_all)
     app.run()
+
+
+# Import and register context commands
+from tix.commands.context import context
+cli.add_command(context)
+
 
 if __name__ == '__main__':
     cli()
