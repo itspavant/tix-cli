@@ -4,6 +4,8 @@ from rich.table import Table
 from pathlib import Path
 from tix.storage.json_storage import TaskStorage
 from tix.storage.context_storage import ContextStorage
+from tix.storage.history import HistoryManager
+from tix.models import Task
 from datetime import datetime
 import subprocess
 import platform
@@ -16,6 +18,7 @@ from importlib import import_module
 console = Console()
 storage = TaskStorage()
 context_storage = ContextStorage()
+history = HistoryManager()
 
 
 @click.group(invoke_without_command=True)
@@ -72,7 +75,7 @@ def add(task, priority, tag, attach, link, is_global):
     if link:
         new_task.links.extend(link)
 
-    storage.update_task(new_task)
+    storage.update_task(new_task, record_history=False)
 
     color = {'high': 'red', 'medium': 'yellow', 'low': 'green'}[priority]
     
@@ -222,25 +225,51 @@ def clear(completed, force):
     storage.save_tasks(remaining)
     console.print(f"[green]✔[/green] Cleared {count} {task_type} task(s)")
 
+def apply(op):
+    """Re-apply an operation (used for redo)"""
+    if op["op"] == "add":
+        tasks = storage.load_tasks()
+        restored_task = Task.from_dict(op["after"])
+        tasks.append(restored_task)
+        storage.save_tasks(sorted(tasks, key=lambda t: t.id))
+    elif op["op"] == "update":
+        storage.update_task(Task.from_dict(op["after"]), record_history=False)
+    elif op["op"] == "delete":
+        storage.delete_task(op["before"]["id"], record_history=False)
+
+def apply_inverse(op):
+    """Apply the inverse of an operation (used for undo)"""
+    if op["op"] == "add":
+        deleted = storage.delete_task(op["after"]["id"], record_history=False)
+    elif op["op"] == "update":
+        storage.update_task(Task.from_dict(op["before"]), record_history=False)
+    elif op["op"] == "delete":
+        tasks = storage.load_tasks()
+        restored_task = Task.from_dict(op["before"])
+        tasks.append(restored_task)
+        storage.save_tasks(sorted(tasks, key=lambda t: t.id))
 
 @cli.command()
-@click.argument("task_id", type=int)
-def undo(task_id):
-    """Mark a completed task as active again"""
-    task = storage.get_task(task_id)
-    if not task:
-        console.print(f"[red]✗[/red] Task #{task_id} not found")
+def undo():
+    """Undo the last operation"""
+    op = history.pop_undo()
+    if not op:
+        console.print("[yellow]No operations to undo[/yellow]")
         return
 
-    if not task.completed:
-        console.print(f"[yellow]![/yellow] Task #{task_id} is not completed")
+    apply_inverse(op)
+    console.print(f"[green]✔ Undo complete[/green]")
+
+@cli.command()
+def redo():
+    """Redo the last undone operation"""
+    op = history.pop_redo()
+    if not op:
+        console.print("[yellow]No operations to redo[/yellow]")
         return
 
-    task.completed = False
-    task.completed_at = None
-    storage.update_task(task)
-    console.print(f"[green]✔[/green] Reactivated: {task.text}")
-
+    apply(op)
+    console.print(f"[green]✔ Redo complete[/green]")
 
 @cli.command(name="done-all")
 @click.argument("task_ids", nargs=-1, type=int, required=True)
