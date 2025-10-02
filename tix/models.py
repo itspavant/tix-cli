@@ -37,6 +37,8 @@ class Task:
     def from_dict(cls, data: dict):
         """Create task from dictionary (handles old tasks safely)"""
         # Handle legacy tasks without new fields
+        if 'due' not in data:
+            data['due'] = None
         if 'attachments' not in data:
             data['attachments'] = []
         if 'links' not in data:
