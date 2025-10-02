@@ -55,7 +55,6 @@ def add(task, priority, tag, attach, link, due, is_global):
         console.print("[red]Error processing date")
         sys.exit(1)
 
-    new_task = storage.add_task(task, priority, list(tag),date)
     new_task = storage.add_task(task, priority, list(tag),due=date, is_global=is_global)
     # Handle attachments
     if attach:
