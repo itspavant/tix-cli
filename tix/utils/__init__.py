@@ -19,6 +19,6 @@ def get_date(date: str):
             console.print("[red]Past dates not allowed")
             return None
         return due_date.strftime(r"%Y-%m-%d")
-    except:
+    except ValueError as ve:
+        console.print(f"Error parsing due date:\n{ve}")
         return None
-    return None
