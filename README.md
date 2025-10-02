@@ -374,13 +374,13 @@ tix backup list
 
 ```bash
 # Restore using top-level command (prompts for confirmation)
-tix restore backup-2025-10-02-120000.json
+tix restore <file_name>
 
 # Skip confirmation
-tix restore backup-2025-10-02-120000.json -y
+tix restore <file_name> -y
 
 # Equivalent grouped command
-tix backup restore backup-2025-10-02-120000.json
+tix backup restore <file_name>
 ```
 
 
