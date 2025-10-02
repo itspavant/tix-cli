@@ -36,7 +36,22 @@ def test_add_task(runner):
             assert result.exit_code == 0
             assert 'Added task' in result.output
             assert 'Test task' in result.output
-
+def test_report_markdown(runner):
+    """Test markdown report generation"""
+    with runner.isolated_filesystem():
+        temp_storage = Path.cwd() / "tasks.json"
+        temp_storage.write_text('[]')
+        from tix.storage.json_storage import TaskStorage
+        test_storage = TaskStorage(temp_storage)
+        with patch('tix.cli.storage', test_storage):
+            runner.invoke(cli, ['add', 'High priority task', '-p', 'high', '-t', 'work'])
+            runner.invoke(cli, ['add', 'Medium task', '-p', 'medium'])
+            runner.invoke(cli, ['done', '1'])
+            result = runner.invoke(cli, ['report', '-f', 'markdown'])
+            assert result.exit_code == 0
+            assert '# TIX Task Report' in result.output
+            assert '- [ ]' in result.output 
+            assert '## Summary' in result.output
 
 def test_list_empty(runner):
     """Test listing when no tasks"""
