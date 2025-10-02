@@ -55,7 +55,7 @@ def add(task, priority, tag, attach, link, due, is_global):
         console.print("[red]Error processing date")
         sys.exit(1)
 
-    new_task = storage.add_task(task, priority, list(tag),due=date, is_global=is_global)
+    new_task = storage.add_task(task, priority, list(tag), due=date, is_global=is_global)
     # Handle attachments
     if attach:
         attachment_dir = Path.home() / ".tix" / "attachments" / str(new_task.id)
@@ -295,7 +295,7 @@ def done_all(task_ids):
 @click.option('--attach', '-f', multiple=True, help='Attach file(s)')
 @click.option('--link', '-l', multiple=True, help='Attach URL(s)')
 @click.option("--due", "-d", help="Due date of task")
-def edit(task_id, text, priority, add_tag, remove_tag, attach, link,due):
+def edit(task_id, text, priority, add_tag, remove_tag, attach, link, due):
     """Edit a task"""
     task = storage.get_task(task_id)
     if not task:
